@@ -22,7 +22,7 @@
 }
 body { font-family: Arial, sans-serif; margin:0; background:#f7f7f7; color:#222; }
 header {
-  background: linear-gradient(90deg, #2beb04, #fa8e00);
+  background: linear-gradient(90deg, #f38a01, #00d170);
   color: white; padding:8px 14px; box-shadow:0 3px 8px rgba(0,0,0,0.08);
   position: sticky; top:0; z-index:1000; display:flex; gap:12px; align-items:center; justify-content:space-between;
 }
@@ -56,7 +56,7 @@ header {
   }
 }
 
-.product img{ width:80%; height:100px; object-fit:cover; border-radius:6px; }
+.product img{ width:70%; height:100px; object-fit:cover; border-radius:6px; }
 .product .meta{ flex:1; font-size:13px; color:var(--muted); }
 .product .price{ font-weight:700; font-size:14px; }
 .product .controls{ display:flex; gap:6px; align-items:center; justify-content:center; flex-direction:column; }
@@ -239,6 +239,140 @@ header {
   cursor: not-allowed !important;
   opacity: 0.6;
 }
+
+/* ========================= */
+/* CORREÇÕES PARA PAINEL ADMIN NO CELULAR */
+/* ========================= */
+
+@media (max-width: 600px) {
+  /* Modal do admin - ajustes para caber na tela */
+  .modal {
+    padding: 12px !important;
+    max-height: 90vh !important;
+    margin: 10px !important;
+    width: calc(100% - 20px) !important;
+    overflow-x: hidden !important;
+  }
+  
+  /* Conteúdo do admin - organizar melhor */
+  #adminProductsList {
+    max-height: 45vh !important;
+    padding-right: 3px !important;
+  }
+  
+  /* Linhas dos produtos no admin - layout vertical */
+  .admin-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+    padding: 12px 8px !important;
+  }
+  
+  /* Imagem do produto no admin */
+  .admin-row img {
+    width: 70px !important;
+    height: 70px !important;
+  }
+  
+  /* Controles do produto no admin */
+  .admin-controls {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    width: 100% !important;
+    gap: 5px !important;
+    margin-top: 8px !important;
+  }
+  
+  .admin-controls button {
+    flex: 1 !important;
+    min-width: 70px !important;
+    padding: 8px !important;
+    font-size: 12px !important;
+  }
+  
+  /* Barra de ferramentas do admin */
+  .modal div[style*="display: flex; flex-wrap: wrap; gap: 8px;"] {
+    flex-direction: column !important;
+  }
+  
+  .modal div[style*="display: flex; flex-wrap: wrap; gap: 8px;"] button {
+    width: 100% !important;
+    min-width: unset !important;
+    margin-bottom: 5px !important;
+  }
+  
+  /* Cabeçalho do modal admin */
+  .modal div[style*="display: flex; justify-content: space-between;"] {
+    flex-direction: column !important;
+    gap: 10px !important;
+    align-items: flex-start !important;
+  }
+  
+  /* Botão fechar do admin */
+  #adminCloseBtn {
+    width: 100% !important;
+    margin-top: 10px !important;
+  }
+  
+  /* Barra de pesquisa do admin */
+  .modal input[placeholder*="Pesquisar produto"] {
+    font-size: 14px !important;
+    padding: 10px !important;
+  }
+  
+  /* Modal backdrop */
+  .modal-backdrop {
+    padding: 5px !important;
+    align-items: center !important;
+  }
+}
+
+/* Ajustes adicionais para telas muito pequenas */
+@media (max-width: 400px) {
+  .admin-controls {
+    flex-direction: column !important;
+  }
+  
+  .admin-controls button {
+    width: 100% !important;
+  }
+  
+  .modal {
+    padding: 8px !important;
+  }
+  
+  /* Botões do toolbar */
+  .modal button {
+    font-size: 13px !important;
+    padding: 10px 8px !important;
+  }
+}
+
+/* Melhorar scroll no mobile */
+#adminProductsList {
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: contain !important;
+}
+
+/* Ajustar modal de senha no mobile */
+@media (max-width: 600px) {
+  div[style*="background: white; padding: 25px; border-radius: 10px;"] {
+    padding: 15px !important;
+    width: 95% !important;
+    margin: 10px !important;
+  }
+  
+  div[style*="background: white; padding: 25px; border-radius: 10px;"] input {
+    padding: 10px !important;
+    font-size: 14px !important;
+  }
+  
+  div[style*="background: white; padding: 25px; border-radius: 10px;"] button {
+    padding: 10px !important;
+    font-size: 13px !important;
+  }
+}
 </style>
 
 </head>
@@ -356,6 +490,25 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+
+// =========================
+// MELHORIAS PARA MOBILE - PAINEL ADMIN
+// =========================
+
+// Função para melhorar a experiência mobile no painel admin
+function melhorarMobileAdmin() {
+  // Ajustar altura do container de produtos
+  const adminContainer = document.getElementById('adminProductsList');
+  if (adminContainer && window.innerWidth <= 600) {
+    adminContainer.style.maxHeight = 'calc(80vh - 250px)';
+  }
+  
+  // Ajustar botões para touch
+  document.querySelectorAll('.admin-controls button').forEach(btn => {
+    btn.style.minHeight = '44px'; // Tamanho mínimo para toque
+    btn.style.touchAction = 'manipulation';
+  });
+}
 
 // =========================
 // FUNÇÃO PARA MODAL DE SENHA COM ESTRELINHAS
@@ -2943,6 +3096,29 @@ toolbar.appendChild(pixConfigBtn);
       }
     }
   });
+
+  // Aplicar melhorias para mobile
+  setTimeout(() => {
+    melhorarMobileAdmin();
+    
+    // Observar mudanças no DOM para aplicar ajustes
+    const observer = new MutationObserver(() => {
+      melhorarMobileAdmin();
+    });
+    
+    // Observar o container do admin
+    const adminContainer = document.getElementById('adminProductsList');
+    if (adminContainer) {
+      observer.observe(adminContainer, {
+        childList: true,
+        subtree: true
+      });
+    }
+    
+    // Ajustar quando a orientação mudar
+    window.addEventListener('resize', melhorarMobileAdmin);
+    window.addEventListener('orientationchange', melhorarMobileAdmin);
+  }, 300);
 }
 
 // =========================
@@ -4699,8 +4875,8 @@ window.resetarSistema = function() {
           if (tecnicoSnap.exists) {
               const tecnicoData = tecnicoSnap.data();
               conteudoSenhas += `• Senha hash: <code style="color: #f39c12;">${tecnicoData.senha ? tecnicoData.senha.substring(0, 20) + '...' : 'Não configurada'}</code><br>`;
-              conteudoSenhas += `• Última alteração: ${tecnicoData.atualizadoEm || 'N/A'}<br>`;
-              conteudoSenhas += `• Tipo: ${tecnicoData.tipo || 'modo_tecnico'}<br>`;
+              conteudoSenhas += `• Última alteração: ${tecnicoData.atualizadoEm || 'N/A'}\n`;
+              conteudoSenhas += `• Tipo: ${tecnicoData.tipo || 'modo_tecnico'}\n`;
           } else {
               conteudoSenhas += '• ❌ Não configurada (usará padrão: tecnico123)<br>';
           }
@@ -5071,6 +5247,13 @@ document.addEventListener('keydown', function(e) {
 
 console.log('🎯 Atalho: Ctrl+Alt+T para modo técnico (com senha exclusiva)');
 console.log('🔑 Senha padrão do técnico: tecnico123 (altere no primeiro acesso)');
+
+// Ajustar quando a janela for redimensionada
+window.addEventListener('resize', function() {
+  if (document.querySelector('.modal-backdrop')) {
+    melhorarMobileAdmin();
+  }
+});
 </script>
 </body>
 </html>
