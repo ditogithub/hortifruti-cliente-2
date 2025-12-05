@@ -1,0 +1,5076 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>hortifruti-cliente-2</title>
+
+<!-- Firebase (compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+
+<style>
+:root{
+  --accent:#df4b10;
+  --blue:#2d9cdb;
+  --danger:#e74c3c;
+  --card:#ffffff;
+  --muted:#666;
+}
+body { font-family: Arial, sans-serif; margin:0; background:#f7f7f7; color:#222; }
+header {
+  background: linear-gradient(90deg, #2beb04, #fa8e00);
+  color: white; padding:8px 14px; box-shadow:0 3px 8px rgba(0,0,0,0.08);
+  position: sticky; top:0; z-index:1000; display:flex; gap:12px; align-items:center; justify-content:space-between;
+}
+#searchContainer{ display:flex; gap:10px; align-items:center; width:100%; max-width:1200px; margin:0 auto; }
+#searchInput{ flex:1; max-width:360px; padding:6px 8px; border-radius:6px; border:1px solid rgba(0,0,0,0.12); }
+#adminLink{ background:rgba(0,0,0,0.2); color:#fff; padding:6px 10px; border-radius:6px; text-decoration:none; font-weight:600; }
+#btnOpenCart{ background:rgba(255,255,255,0.12); color:#fff; padding:6px 10px; border-radius:6px; border:0; cursor:pointer; font-weight:700; }
+.page { padding:18px; max-width:1200px; margin:0 auto; }
+.layout-coluna{ display:flex; flex-direction:column; gap:14px; align-items:center; }
+.card{ background:var(--card); border-radius:10px; padding:14px; width:95%; max-width:1000px; box-shadow:0 6px 18px rgba(0,0,0,0.04); position:relative; }
+.products{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; }
+.product{ width:180px; background:#fafafa; border:1px solid #eee; border-radius:8px; padding:8px; text-align:center; display:flex; flex-direction:column; gap:8px; }
+/* Ajuste de largura dos cards no celular */
+@media (max-width: 600px) {
+  .product {
+    width: 90%;          /* ocupa quase toda a tela do celular */
+    margin: 10px auto;   /* centraliza horizontalmente */
+    display: block;      /* cada card em linha separada */
+  }
+
+  .product img {
+    width: 100%;         /* imagem ocupa toda a largura do card */
+    height: auto;        /* mantém proporção */
+  }
+
+  .product .controls input,
+  .product .controls select,
+  .product .controls button {
+    width: 100%;         /* campos e botão ocupam largura total */
+    margin-top: 6px;
+  }
+}
+
+.product img{ width:80%; height:100px; object-fit:cover; border-radius:6px; }
+.product .meta{ flex:1; font-size:13px; color:var(--muted); }
+.product .price{ font-weight:700; font-size:14px; }
+.product .controls{ display:flex; gap:6px; align-items:center; justify-content:center; flex-direction:column; }
+.product select, .product input[type="number"]{ width:100%; padding:6px; border-radius:6px; border:1px solid #ddd; box-sizing:border-box; }
+.btn{ border:0; padding:8px 10px; border-radius:8px; cursor:pointer; font-weight:600; }
+.btn-add{ background:var(--accent); color:#fff; width:100%; }
+.cart-items{ display:flex; flex-direction:column; gap:10px; margin-top:8px; max-height:48vh; overflow:auto; padding-right:6px; }
+.cart-item{ display:flex; gap:10px; align-items:center; background:#f8f8f8; padding:8px; border-radius:8px; }
+.cart-item img{ width:64px; height:64px; object-fit:cover; border-radius:6px; }
+.cart-item .info{ flex:1; font-size:14px; }
+.cart-item .info small{ display:block; color:var(--muted); font-size:12px; }
+.remove-btn{ background:var(--danger); color:rgb(255, 255, 255); border:0; padding:6px 8px; border-radius:6px; cursor:pointer; }
+.cart-actions{ display:flex; gap:10px; justify-content:center; margin-top:12px; flex-wrap:wrap; }
+.total{ text-align:right; font-weight:700; font-size:18px; margin-top:8px; }
+.pix-area{ text-align:center; margin-top:12px; }
+.small{ color:var(--muted); font-size:13px; }
+.pix-copy-actions{ display:flex; gap:8px; margin-top:8px; justify-content:center; }
+
+.client-form { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.client-form input, .client-form textarea { padding:8px; border-radius:6px; border:1px solid #ddd; width:100%; box-sizing:border-box; }
+.client-form .col { flex:1; min-width:200px; }
+
+.catalog-block {
+  position:absolute;
+  inset:0;
+  background: rgba(255, 255, 255, 0.95);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  border-radius:10px;
+  flex-direction:column;
+  gap:8px;
+  text-align:center;
+  z-index:50;
+}
+.catalog-block .msg { font-weight:700; color:var(--danger); }
+
+/* modal */
+.modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.35); display:flex; align-items:flex-start; justify-content:center; padding:40px 12px; z-index:2000; }
+.modal{ background:#fff; border-radius:10px; width:100%; max-width:900px; padding:18px; box-shadow:0 10px 40px rgba(0,0,0,0.25); max-height:85vh; overflow:auto; }
+.admin-row{ display:flex; align-items:center; gap:12px; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f0f0f0; }
+.admin-row .meta{ flex:1; }
+.admin-controls{ display:flex; gap:8px; }
+
+@media (max-width:900px){
+  .product{ width:48%; }
+  header{ padding:10px; flex-direction:column; align-items:stretch; gap:8px; }
+  #searchContainer{ max-width:100%; }
+}
+
+.btn-add.flash {
+  animation: flashAnim 0.4s ease-out;
+}
+
+@keyframes flashAnim {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.15); background:#4caf50; color:#fff; }
+  100% { transform: scale(1); }
+}
+
+/* Aumentar largura dos cards no celular */
+@media (max-width: 600px) {
+  .product {
+    width: 95% !important;
+  }
+
+  .product img {
+    height: 160px; /* opcional: imagem maior */
+  }
+}
+/*  botão carrinho css */
+#btnOpenCart {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#btnOpenCart .icon-cart {
+  width: 20px;
+  height: 20px;
+}
+
+/* CSS do badge (bolinha com número)*/
+#btnOpenCart {
+  position: relative;
+}
+
+#cartCount {
+  background: red;
+  color: white;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 50%;
+  position: absolute;
+  top: -5px;
+  right: -5px;
+}
+
+/* Preço antigo riscado no centro*/
+.old-price {
+  text-decoration: line-through;
+  color: #888;        /* cor mais apagada */
+  font-size: 13px;    /* menor */
+  margin-left: 6px;   /* um espacinho do preço atual */
+}
+.product {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px;
+  gap: 10px;
+}
+
+.product-img {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.info-area {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px 3px;
+}
+
+.price-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.current-price strong {
+  font-size: 20px;
+  color: #0eaf51;
+}
+
+.old-price {
+  font-size: 14px;
+  color: #888;
+  text-decoration: line-through;
+}
+
+.percent {
+  background: #d32f2f;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.name {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.desc {
+  font-size: 13px;
+  color: #666;
+}
+
+/* carrinho desativado*/
+.disabled {
+  background:#999 !important;
+  cursor:not-allowed !important;
+  opacity:0.7;
+}
+.btn-add.disabled {
+  background: #bbb !important;
+  cursor: not-allowed !important;
+}
+
+/* CSS para botões PIX */
+.btn-disabled {
+  background: #999 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6;
+}
+</style>
+
+</head>
+<body>
+<header style="padding: 5px; text-align: center;">
+
+  <!-- LOGO + NOME -->
+  <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+    
+    <!-- LOGO -->
+    <img src="imagens/compras_verduras.png" 
+         alt="Logo" 
+         style="width: 48px; height: auto; border-radius: 8px;">
+    
+    <!-- NOME DA EMPRESA -->
+    <h1 style="margin: 0; font-size: 18px; font-weight: bold;">
+      Hortifruti Cliente 2
+    </h1>
+  </div>
+
+  <!-- CAMPO DE PESQUISA -->
+  <div id="searchContainer" style="margin-top: 12px;">
+    <input id="searchInput" placeholder="🔍 Pesquisar produtos..." />
+    <a href="#" id="adminLink">Admin</a>
+    <button id="btnOpenCart">
+    <img 
+      src="https://cdn-icons-png.flaticon.com/512/3144/3144456.png" 
+      alt="Carrinho" 
+      class="icon-cart"
+    >
+   <!--Carrinho-->
+    <span id="cartCount">0</span>
+  </button>
+
+
+      </div>
+
+</header>
+
+
+
+
+<main class="page">
+<div class="layout-coluna">
+
+  <!-- Produtos / catálogo -->
+  <div class="card" id="catalogCard">
+    <h2 style="text-align:center;margin:0 0 8px 0;">Produtos</h2>
+    <div id="productsList" class="products"></div>
+
+    <!-- bloco mostrado quando vendas estão bloqueadas -->
+    <div id="catalogBlocked" class="catalog-block" style="display:none;">
+      <div class="msg">⚠️ As vendas estão temporariamente bloqueadas. Volte mais tarde.</div>
+      <div class="small">No painel admin você pode alterar o status para liberar as vendas.</div>
+    </div>
+  </div>
+
+  <!-- Carrinho -->
+  <div class="card" id="cartCard" style="display:none;">
+    <h2 style="text-align:center;margin:0 0 8px 0;">Orçamento</h2>
+
+    <div class="client-form">
+      <div class="col"><input id="clientName" placeholder="Nome"></div>
+      <div class="col"><input id="clientPhone" placeholder="Telefone"></div>
+      <div class="col" style="flex-basis:100%"><textarea id="clientAddress" rows="2" placeholder="Endereço"></textarea></div>
+      <div class="col" style="flex-basis:100%; display:flex; gap:8px; align-items:center;">
+        <input id="clientLocation" placeholder="Localização (link do Maps)" style="flex:1;">
+        <button class="btn" style="background:var(--blue); color:#fff;" id="btnUseLocation">📍 Usar minha localização</button>
+      </div>
+      <div class="col" style="flex-basis:100%;">
+      <input id="clientTroco" placeholder="Precisa de troco? Para quanto?">
+      </div>
+
+    </div>
+
+    <div id="cartItems" class="cart-items">
+      <div class="small">Nenhum item ainda.</div>
+    </div>
+
+    <div class="total" id="cartTotal">Total: R$ 0,00</div>
+
+    <div class="cart-actions">
+      <button class="btn" style="background:#e74c3c;color:#fff" onclick="limparCarrinho()">🗑️ Limpar carrinho</button>
+      <button class="btn" style="background:#25d366;color:#fff" onclick="enviarWhats()">📲 Enviar pelo WhatsApp</button>
+      <button class="btn" style="background:var(--blue);color:#fff" onclick="continuarComprando()">➡️ Continuar comprando</button>
+    </div>
+
+    <!-- PIX opção 2 -->
+    <div class="pix-area" id="pixArea">
+      <h3 style="margin:12px 0 6px 0;">Pagamento PIX</h3>
+      <div class="small">Chave PIX: <b id="pixKeyDisplay">--</b></div>
+      <div style="margin-top:8px;">
+        <textarea id="pixPayload" readonly rows="3" style="width:100%; margin-top:6px; padding:6px; border-radius:6px; border:1px solid #ddd;"></textarea>
+        <button class="btn" id="btnCopyPayload" style="margin-top:6px; background:var(--blue); color:#fff;">📋 Copiar código PIX</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+</main>
+
+<script>
+// =========================
+// FIREBASE (compat) CONFIG
+// =========================
+const firebaseConfig = {
+  apiKey: "AIzaSyBYkn_DB7yzt_KhMd49RxfIVgIleNZjhdQ",
+  authDomain: "hortifruti-cliente-2.firebaseapp.com",
+  projectId: "hortifruti-cliente-2",
+  storageBucket: "hortifruti-cliente-2.firebasestorage.app",
+  messagingSenderId: "955241592474",
+  appId: "1:955241592474:web:83d8c2668c90306cead123"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// =========================
+// FUNÇÃO PARA MODAL DE SENHA COM ESTRELINHAS
+// =========================
+function criarModalSenha() {
+    return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            font-family: Arial, sans-serif;
+        `;
+        
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = `
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            width: 320px;
+            text-align: center;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        `;
+        
+        modalContent.innerHTML = `
+            <h3 style="color: #9b59b6; margin-top: 0; margin-bottom: 15px;">
+                🔒 Senha de Acesso PIX
+            </h3>
+            <p style="color: #666; margin-bottom: 20px; font-size: 14px;">
+                Digite a senha de administrador para configurar o PIX:
+            </p>
+            <input type="password" id="senhaPixInput" 
+                   placeholder="Digite a senha"
+                   style="width: 100%; padding: 12px; 
+                          border: 2px solid #ddd; 
+                          border-radius: 5px; 
+                          font-size: 16px;
+                          margin-bottom: 20px;"
+                   autofocus>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button id="btnCancelarSenha" 
+                        style="padding: 10px 20px; 
+                               background: #95a5a6; 
+                               color: white; 
+                               border: none; 
+                               border-radius: 5px;
+                               cursor: pointer;
+                               font-size: 14px;">
+                    Cancelar
+                </button>
+                <button id="btnConfirmarSenha" 
+                        style="padding: 10px 20px; 
+                               background: #9b59b6; 
+                               color: white; 
+                               border: none; 
+                               border-radius: 5px;
+                               cursor: pointer;
+                               font-size: 14px;">
+                    Confirmar
+                </button>
+            </div>
+        `;
+        
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+        
+        const senhaInput = document.getElementById('senhaPixInput');
+        const btnConfirmar = document.getElementById('btnConfirmarSenha');
+        const btnCancelar = document.getElementById('btnCancelarSenha');
+        
+        senhaInput.focus();
+        
+        const removerModal = () => {
+            if (document.body.contains(modal)) {
+                document.body.removeChild(modal);
+            }
+        };
+        
+        btnConfirmar.onclick = () => {
+            const senha = senhaInput.value;
+            removerModal();
+            resolve(senha);
+        };
+        
+        btnCancelar.onclick = () => {
+            removerModal();
+            resolve(null);
+        };
+        
+        senhaInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                btnConfirmar.click();
+            }
+        });
+        
+        modal.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                btnCancelar.click();
+            }
+        });
+        
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                btnCancelar.click();
+            }
+        });
+    });
+}
+
+// =========================
+// FUNÇÃO PARA MODAL DE SENHA DO WHATSAPP
+// =========================
+function criarModalSenhaWhatsApp() {
+    return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            font-family: Arial, sans-serif;
+        `;
+        
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = `
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            width: 320px;
+            text-align: center;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        `;
+        
+        modalContent.innerHTML = `
+            <h3 style="color: #25D366; margin-top: 0; margin-bottom: 15px;">
+                🔒 Senha para Configurar WhatsApp
+            </h3>
+            <p style="color: #666; margin-bottom: 20px; font-size: 14px;">
+                Digite a senha para configurar o WhatsApp:
+            </p>
+            <input type="password" id="senhaWhatsAppInput" 
+                   placeholder="Digite a senha"
+                   style="width: 100%; padding: 12px; 
+                          border: 2px solid #ddd; 
+                          border-radius: 5px; 
+                          font-size: 16px;
+                          margin-bottom: 20px;"
+                   autofocus>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button id="btnCancelarSenhaWhatsApp" 
+                        style="padding: 10px 20px; 
+                               background: #95a5a6; 
+                               color: white; 
+                               border: none; 
+                               border-radius: 5px;
+                               cursor: pointer;
+                               font-size: 14px;">
+                    Cancelar
+                </button>
+                <button id="btnConfirmarSenhaWhatsApp" 
+                        style="padding: 10px 20px; 
+                               background: #25D366; 
+                               color: white; 
+                               border: none; 
+                               border-radius: 5px;
+                               cursor: pointer;
+                               font-size: 14px;">
+                    Confirmar
+                </button>
+            </div>
+        `;
+        
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+        
+        const senhaInput = document.getElementById('senhaWhatsAppInput');
+        const btnConfirmar = document.getElementById('btnConfirmarSenhaWhatsApp');
+        const btnCancelar = document.getElementById('btnCancelarSenhaWhatsApp');
+        
+        senhaInput.focus();
+        
+        const removerModal = () => {
+            if (document.body.contains(modal)) {
+                document.body.removeChild(modal);
+            }
+        };
+        
+        btnConfirmar.onclick = () => {
+            const senha = senhaInput.value;
+            removerModal();
+            resolve(senha);
+        };
+        
+        btnCancelar.onclick = () => {
+            removerModal();
+            resolve(null);
+        };
+        
+        senhaInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                btnConfirmar.click();
+            }
+        });
+        
+        modal.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                btnCancelar.click();
+            }
+        });
+        
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                btnCancelar.click();
+            }
+        });
+    });
+}
+
+// =========================
+// SISTEMA DE LOGS DE SEGURANÇA
+// =========================
+const sistemaLogs = {
+    async registrar(tipo, dados) {
+        try {
+            const logEntry = {
+                tipo,
+                dados: this._sanitizarDados(dados),
+                timestamp: new Date().toISOString(),
+                userAgent: navigator.userAgent,
+                url: window.location.href
+            };
+            
+            // Salvar no Firebase
+            await db.collection('logs_seguranca').add(logEntry);
+            
+            // Console apenas em desenvolvimento
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                console.log(`[LOG] ${tipo}:`, logEntry);
+            }
+            
+        } catch (error) {
+            console.error('Erro ao salvar log:', error);
+        }
+    },
+    
+    _sanitizarDados(dados) {
+        // Remove dados sensíveis
+        const sanitizado = { ...dados };
+        
+        // Mascarar senhas
+        if (sanitizado.senha) sanitizado.senha = '***MASKED***';
+        if (sanitizado.password) sanitizado.password = '***MASKED***';
+        
+        // Mascarar chaves PIX/CPF
+        if (sanitizado.chave) {
+            sanitizado.chave = '***' + sanitizado.chave.toString().slice(-4);
+        }
+        
+        if (sanitizado.cpf) {
+            sanitizado.cpf = '***.***.***-**';
+        }
+        
+        return sanitizado;
+    }
+};
+
+// =========================
+// FUNÇÕES DE SEGURANÇA
+// =========================
+async function hashSenha(senha) {
+    // Hash simples mas mais seguro que texto claro
+    const encoder = new TextEncoder();
+    const data = encoder.encode(senha + 'HORTI_SALT_SECRET'); // Sal adicionado
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+}
+
+async function getUserIP() {
+    try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        return data.ip;
+    } catch {
+        return 'IP não disponível';
+    }
+}
+
+// =========================
+// VARIÁVEIS GLOBAIS
+// =========================
+let cart = JSON.parse(localStorage.getItem('cart') || '[]');
+let cartEnabled = true;
+let adminAutenticado = false;
+let adminSessaoTimeout = null;
+
+// =========================
+// VARIÁVEIS PIX (AGORA CONFIGURÁVEIS)
+// =========================
+let merchantName = ''; // Será sobrescrito pelo Firebase
+let merchantCity = ''; // Será sobrescrito pelo Firebase
+let rawPixPhone = '';
+let sellerPhone = '';
+
+// =========================
+// FUNÇÕES UTILITÁRIAS
+// =========================
+function saveCart() {
+  localStorage.setItem('cart', JSON.stringify(cart));
+  if (typeof carregarProdutos === 'function') carregarProdutos();
+}
+function escapeHtml(s){ return String(s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'); }
+function formatBRL(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency', currency:'BRL'}); }
+function calcTotal(){ return cart.reduce((s,it)=> s + (Number(it.unitPrice||0) * Number(it.qty||0)), 0); }
+
+// =========================
+// FUNÇÕES PIX
+// =========================
+// FUNÇÃO CRC16 CORRIGIDA
+function calcularCRC16(str) {
+  let crc = 0xFFFF;
+  
+  for (let i = 0; i < str.length; i++) {
+    crc ^= str.charCodeAt(i) << 8;
+    
+    for (let j = 0; j < 8; j++) {
+      if (crc & 0x8000) {
+        crc = (crc << 1) ^ 0x1021;
+      } else {
+        crc = crc << 1;
+      }
+      
+      crc &= 0xFFFF;
+    }
+  }
+  
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+
+// FUNÇÃO PIX CORRIGIDA
+function buildPixEMV(chavePix, nomeRecebedor, cidadeRecebedor, valor) {
+  chavePix = String(chavePix || '').trim();
+  nomeRecebedor = String(nomeRecebedor || '').toUpperCase().substring(0, 25);
+  cidadeRecebedor = String(cidadeRecebedor || '').toUpperCase().substring(0, 15);
+  
+  // Validação: se nome ou cidade estiverem vazios, usar valores genéricos
+  if (!nomeRecebedor || nomeRecebedor.trim() === '') {
+    nomeRecebedor = 'LOJA';
+  }
+  
+  if (!cidadeRecebedor || cidadeRecebedor.trim() === '') {
+    cidadeRecebedor = 'CIDADE';
+  }
+  
+  let valorStr = '';
+  if (valor && Number(valor) > 0) {
+    valorStr = Number(valor).toFixed(2);
+  }
+  
+  const criarCampo = (id, valor) => {
+    const strValor = String(valor);
+    return id.toString().padStart(2, '0') + 
+           strValor.length.toString().padStart(2, '0') + 
+           strValor;
+  };
+  
+  let payload = '';
+  payload += criarCampo(0, '01');
+  
+  const gui = 'BR.GOV.BCB.PIX';
+  const guiField = criarCampo(0, gui);
+  const chaveField = criarCampo(1, chavePix);
+  const mai = guiField + chaveField;
+  payload += '26' + mai.length.toString().padStart(2, '0') + mai;
+  
+  payload += criarCampo(52, '0000');
+  payload += criarCampo(53, '986');
+  
+  if (valorStr) {
+    payload += criarCampo(54, valorStr);
+  }
+  
+  payload += criarCampo(58, 'BR');
+  payload += criarCampo(59, nomeRecebedor);
+  payload += criarCampo(60, cidadeRecebedor);
+  
+  const txid = 'HORTI' + Date.now().toString().slice(-10);
+  const txidField = criarCampo(5, txid);
+  const addData = txidField;
+  payload += '62' + addData.length.toString().padStart(2, '0') + addData;
+  
+  const dadosCRC = payload + '6304';
+  const crc = calcularCRC16(dadosCRC);
+  
+  return dadosCRC + crc;
+}
+
+// =========================
+// FUNÇÃO PARA CARREGAR CONFIGURAÇÃO DO PIX COMPLETA
+// =========================
+async function carregarConfigPix() {
+  try {
+    const pixSnap = await db.collection('config').doc('pix').get();
+    
+    if (pixSnap.exists) {
+      const data = pixSnap.data();
+      
+      // Se tiver chave, usa ela
+      if (data.chave) {
+        rawPixPhone = data.chave;
+        sellerPhone = data.chave;
+      }
+      
+      // Se tiver nome configurado, usa ele
+      if (data.nomeTitular) {
+        merchantName = data.nomeTitular.toUpperCase();
+      } else {
+        merchantName = ''; // Deixa vazio se não tiver configurado
+      }
+      
+      // Se tiver cidade configurada, usa ela
+      if (data.cidadeTitular) {
+        merchantCity = data.cidadeTitular.toUpperCase();
+      } else {
+        merchantCity = ''; // Deixa vazio se não tiver configurado
+      }
+      
+      console.log('✅ Config PIX carregada:', { 
+        chave: rawPixPhone, 
+        nome: merchantName, 
+        cidade: merchantCity 
+      });
+      
+      return data;
+    } else {
+      // Se não existir, cria com valores VAZIOS (para forçar configuração)
+      await db.collection('config').doc('pix').set({ 
+        chave: '',
+        nomeTitular: '',
+        cidadeTitular: '',
+        criadoEm: new Date().toISOString()
+      });
+      
+      rawPixPhone = '';
+      sellerPhone = '';
+      merchantName = '';
+      merchantCity = '';
+      
+      return null;
+    }
+  } catch (error) {
+    console.error('Erro ao carregar PIX:', error);
+    return null;
+  }
+}
+
+// =========================
+// FUNÇÃO ATUALIZAR DISPLAY PIX
+// =========================
+function atualizarPixDisplay() {
+  const keyDisplay = document.getElementById('pixKeyDisplay');
+  if (keyDisplay) {
+    keyDisplay.textContent = rawPixPhone || 'Não configurada';
+  }
+  
+  const total = calcTotal();
+  const pixEl = document.getElementById('pixPayload');
+  
+  if (pixEl) {
+    if (!rawPixPhone || rawPixPhone.trim() === '') {
+      pixEl.value = '⚠️ Configure uma chave PIX no painel Admin';
+    } else if (total <= 0) {
+      pixEl.value = 'Adicione produtos ao carrinho para gerar código PIX';
+    } else {
+      const pixCode = buildPixEMV(rawPixPhone, merchantName, merchantCity, total);
+      pixEl.value = pixCode;
+    }
+  }
+}
+
+// =========================
+// INICIALIZAR PIX COMPLETO
+// =========================
+async function inicializarPix() {
+  await carregarConfigPix();
+  
+  // Atualizar display
+  document.getElementById('pixKeyDisplay').innerText = rawPixPhone || 'Não configurada';
+  sellerPhone = rawPixPhone;
+  
+  // Atualizar payload se tiver produtos
+  if (cart.length > 0) {
+    atualizarPixDisplay();
+  }
+}
+
+// =========================
+// CONTROLE DO CARRINHO - VERSÃO CORRIGIDA
+// =========================
+async function atualizarStatusCarrinhoUnificado() {
+  try {
+    const cartCfg = await db.collection("config").doc("cart").get();
+    cartEnabled = cartCfg.exists ? cartCfg.data().enabled !== false : true;
+
+    // Atualizar apenas os botões, NÃO esconder o catálogo
+    const icon = document.getElementById("btnOpenCart");
+    if (icon) {
+      if (cartEnabled) {
+        icon.style.display = "flex";
+        icon.style.opacity = "1";
+        icon.style.cursor = "pointer";
+      } else {
+        icon.style.display = "flex"; // Mantém visível
+        icon.style.opacity = "0.5";
+        icon.style.cursor = "not-allowed";
+      }
+    }
+    
+    // REMOVER ou COMENTAR esta parte que esconde o catálogo:
+    const catalogBlocked = document.getElementById("catalogBlocked");
+    if (catalogBlocked) catalogBlocked.style.display = "none"; // SEMPRE ESCONDIDO
+    
+    // Apenas esvaziar carrinho se estiver desativado
+    if (!cartEnabled) {
+      cart = [];
+      localStorage.removeItem('cart');
+      if (typeof renderCart === 'function') renderCart();
+      if (typeof updateCartCount === 'function') updateCartCount();
+    }
+    
+    // Recarregar produtos para atualizar botões
+    if (typeof carregarProdutos === 'function') {
+      carregarProdutos();
+    }
+    
+  } catch (err) {
+    console.error('Erro ao atualizar status do carrinho:', err);
+  }
+}
+
+// =========================
+// CARREGAR PRODUTOS - VERSÃO CORRIGIDA
+// =========================
+async function carregarProdutos() {
+  // Fazer login automático se não estiver autenticado
+  if (!auth.currentUser) {
+    try {
+      await auth.signInAnonymously();
+      console.log('✅ Usuário autenticado anonimamente');
+    } catch (error) {
+      console.log('⚠️ Autenticação não necessária para leitura');
+    }
+  }
+  
+  // Verificar estoque pausado
+  const estoqueSnap = await db.collection('config').doc('estoque').get();
+  const estoquePausado = estoqueSnap.exists ? estoqueSnap.data().pausado : false;
+
+  if (estoquePausado) {
+    const container = document.getElementById('productsList');
+    container.innerHTML = `
+      <div class="catalog-block" style="display:flex;">
+        <h2>⏸️ Estoque em Manutenção</h2>
+        <p>Estamos atualizando nosso estoque. Volte em breve!</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Verificar vendas liberadas
+  const cfgSnap = await db.collection('config').doc('controle').get();
+  const vendasLiberadas = cfgSnap.exists ? cfgSnap.data().vendasLiberadas : true;
+
+  if (!vendasLiberadas) {
+    const container = document.getElementById('productsList');
+    container.innerHTML = `
+      <div class="catalog-block">
+        <h2>⚠️ Vendas temporariamente indisponíveis</h2>
+        <p>Retornaremos em breve!</p>
+      </div>
+    `;
+    return;
+  }
+
+  const snap = await db.collection('produtos').get();
+  const container = document.getElementById('productsList');
+  container.innerHTML = '';
+
+  const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+  snap.forEach(doc => {
+    const pRaw = doc.data() || {};
+    const p = Object.assign({}, pRaw);
+    p._id = doc.id;
+
+    if (!p.name.toLowerCase().includes(searchTerm)) return;
+
+    // Normalização do campo active
+    const val = p.active;
+    const isExplicitlyFalse = (val === false || val === 'false' || val === 0 || val === '0');
+    const isExplicitlyTrue  = (val === true  || val === 'true'  || val === 1 || val === '1');
+    const isActive = isExplicitlyTrue || (!isExplicitlyFalse && val !== undefined) || (val === undefined);
+    if (!isActive) return;
+
+    const priceUnit = (p.priceUnit != null && !isNaN(Number(p.priceUnit)) && p.priceUnit !== '') ? Number(p.priceUnit) : null;
+    const priceKg   = (p.priceKg   != null && !isNaN(Number(p.priceKg))   && p.priceKg !== '') ? Number(p.priceKg) : null;
+    const precoTexto = priceUnit ?? priceKg ?? 0;
+
+    const card = document.createElement('div');
+    card.className = 'product';
+
+    const imgSrc = escapeHtml(p.img || 'https://via.placeholder.com/400x300?text=Sem+imagem');
+    const nameTxt = escapeHtml(p.name || 'Produto');
+    const descTxt = escapeHtml(p.desc || '');
+    const priceTxt = formatBRL(precoTexto);
+
+    let cartQty = 0;
+    const found = cart.find(item => item.id === p._id);
+    if (found) cartQty = found.qty;
+
+    const oldPrice = p.oldPrice ? Number(p.oldPrice) : null;
+    const percent = oldPrice ? `-${((1 - (precoTexto / oldPrice)) * 100).toFixed(0)}%` : null;
+
+    card.innerHTML = `
+      <img src="${imgSrc}" class="product-img">
+      <div class="info-area">
+        <div class="price-box">
+          <div class="current-price">
+            <strong>${priceTxt}</strong>
+          </div>
+          ${oldPrice ? `<div class="old-price">${formatBRL(oldPrice)}</div>` : ""}
+          ${percent ? `<div class="percent">${percent}</div>` : ""}
+        </div>
+        <div class="name">${nameTxt}</div>
+        <div class="desc">${descTxt}</div>
+      </div>
+      <div class="controls">
+        <select id="mode_${p._id}">
+          ${priceUnit ? '<option value="unit">Unidade</option>' : ''}
+          ${priceKg ? '<option value="kg">Kg</option>' : ''}
+        </select>
+        <input id="qty_${p._id}" type="number" value="1" min="0.1" step="0.1">
+        ${
+          cartEnabled
+          ? `<button class="btn btn-add" id="add_${p._id}">+ Carrinho</button>`
+          : `<button class="btn btn-disabled" style="background: #95a5a6; color: white; cursor: not-allowed;" disabled>⏸️ Carrinho Desativado</button>`
+        }
+        ${cartQty > 0 ? `<button class="btn btn-remove" id="rem_${p._id}">🗑️</button>` : ""}
+      </div>
+      <div class="cart-status">
+        ${cartQty > 0 ? `Já no carrinho: <strong>${cartQty}</strong>` : ""}
+      </div>
+    `;
+
+    container.appendChild(card);
+
+    const sel = document.getElementById(`mode_${p._id}`);
+    const addBtn = document.getElementById(`add_${p._id}`);
+    const qtyInput = document.getElementById(`qty_${p._id}`);
+    const remBtn = document.getElementById(`rem_${p._id}`);
+
+    if (!sel || sel.options.length === 0) {
+      if (addBtn) {
+        addBtn.disabled = true;
+        addBtn.textContent = 'Sem preço';
+        addBtn.style.opacity = 0.6;
+      }
+    }
+
+    if (addBtn && cartEnabled) {
+      addBtn.addEventListener('click', async () => {
+        if (addBtn.disabled) return;
+
+        const selectedMode = sel ? sel.value : (priceUnit != null ? 'unit' : 'kg');
+        const qty = Number(qtyInput ? qtyInput.value : 1) || 1;
+        const unitPrice = (selectedMode === 'kg') ? priceKg : priceUnit;
+
+        if (unitPrice == null) {
+          alert('Preço inválido.');
+          return;
+        }
+
+        const snapData = (await db.collection('produtos').doc(p._id).get()).data();
+        const stock = snapData.stock ?? 0;
+
+        if (qty > stock) {
+          alert(`Só temos ${stock} unidades disponíveis.`);
+          return;
+        }
+
+        addToCart({
+          id: p._id,
+          name: p.name || 'Produto',
+          img: p.img,
+          mode: selectedMode,
+          qty,
+          unitPrice: Number(unitPrice)
+        });
+
+        saveCart();
+        carregarProdutos();
+      });
+    }
+
+    if (remBtn) {
+      remBtn.addEventListener('click', () => {
+        const item = cart.find(c => c.id === p._id);
+        if (!item) return;
+
+        const qtdRemover = prompt(`Você tem ${item.qty} no carrinho.\nQuantos deseja remover?`);
+        if (!qtdRemover) return;
+
+        const n = Number(qtdRemover);
+        if (isNaN(n) || n <= 0) {
+          alert("Quantidade inválida.");
+          return;
+        }
+
+        if (n >= item.qty) {
+          cart = cart.filter(c => c.id !== p._id);
+        } else {
+          item.qty -= n;
+        }
+
+        saveCart();
+        carregarProdutos();
+      });
+    }
+  });
+}
+
+// =========================
+// FUNÇÕES DO CARRINHO
+// =========================
+async function addToCart(item) {
+  if (!cartEnabled) {
+    alert("O carrinho está desativado no momento.");
+    return;
+  }
+  
+  const snapData = (await db.collection('produtos').doc(item.id).get()).data();
+  const stock = snapData.stock ?? 0;
+
+  const idx = cart.findIndex(c => c.id === item.id && c.mode === item.mode);
+
+  if (idx >= 0) {
+    const novaQtd = cart[idx].qty + item.qty;
+
+    if (novaQtd > stock) {
+      alert(`Estoque insuficiente! Você já tem ${cart[idx].qty} no carrinho e só existem ${stock} unidades.`);
+      return;
+    }
+
+    cart[idx].qty = novaQtd;
+  } else {
+    if (item.qty > stock) {
+      alert(`Só temos ${stock} unidades disponíveis em estoque.`);
+      return;
+    }
+    cart.push(item);
+  }
+
+  saveCart();
+  renderCart();
+  updateCartCount();
+}
+
+function updateCartCount() {
+  const count = cart.reduce((total, item) => total + item.qty, 0);
+  const badge = document.getElementById('cartCount');
+  if (!badge) return;
+
+  badge.textContent = count;
+  badge.style.display = count > 0 ? "inline-flex" : "none";
+}
+
+function renderCart() {
+  const container = document.getElementById('cartItems');
+  container.innerHTML = '';
+
+  if (cart.length === 0) {
+    container.innerHTML = '<div class="small">Nenhum item ainda.</div>';
+  } else {
+    cart.forEach(it => {
+      const div = document.createElement('div');
+      div.className = 'cart-item';
+
+      div.innerHTML = `
+        <img src="${escapeHtml(it.img)}" style="width:110px; height:80px; object-fit:cover;">
+        <div class="info">
+          <strong>${escapeHtml(it.name)}</strong>
+          <small>${it.mode}</small>
+          <small>Qtd: ${it.qty}</small>
+          <small>Preço unit: ${formatBRL(it.unitPrice)}</small>
+          <small>Total: ${formatBRL(it.unitPrice * it.qty)}</small>
+        </div>
+        <button class="remove-btn">Remover</button>
+      `;
+
+      div.querySelector('.remove-btn').addEventListener('click', () => {
+        const qtd = prompt(`Você adicionou ${it.qty} unidades.\nQuantas deseja remover?`);
+        if (!qtd) return;
+
+        const n = Number(qtd);
+        if (isNaN(n) || n <= 0) {
+          alert("Quantidade inválida.");
+          return;
+        }
+
+        if (n >= it.qty) {
+          cart = cart.filter(c => c !== it);
+        } else {
+          it.qty -= n;
+        }
+
+        saveCart();
+        renderCart();
+      });
+
+      container.appendChild(div);
+    });
+  }
+
+  updateCartCount();
+  document.getElementById('cartTotal').innerText = 'Total: ' + formatBRL(calcTotal());
+  atualizarPixDisplay();
+}
+
+function limparCarrinho(){ 
+  if(confirm('Deseja limpar o carrinho?')){ 
+    cart=[]; 
+    saveCart(); 
+    renderCart(); 
+  } 
+}
+
+// =========================
+// FUNÇÃO ENVIAR WHATSAPP - CORRIGIDA
+// =========================
+async function enviarWhats() {
+  console.log('🟡 Iniciando envio para WhatsApp...');
+  
+  if (cart.length === 0) {
+    alert('❌ Carrinho vazio! Adicione produtos antes de enviar.');
+    return;
+  }
+
+  // 🛑 BLOQUEAR BOTÃO para evitar cliques duplos
+  const btnWhats = document.querySelector('button[onclick="enviarWhats()"]');
+  const originalText = btnWhats.textContent;
+  btnWhats.textContent = '⏳ Preparando...';
+  btnWhats.disabled = true;
+
+  try {
+    // ✅ 1º PASSO: VERIFICAR ESTOQUE
+    const estoqueSnap = await db.collection('config').doc('estoque').get();
+    const estoquePausado = estoqueSnap.exists ? estoqueSnap.data().pausado : false;
+    
+    if (estoquePausado) {
+      alert('⏸️ Estoque em manutenção. Tente novamente mais tarde.');
+      btnWhats.textContent = originalText;
+      btnWhats.disabled = false;
+      return;
+    }
+
+    for (const item of cart) {
+      const produtoRef = db.collection('produtos').doc(item.id);
+      const snap = await produtoRef.get();
+      
+      if (!snap.exists) {
+        alert(`❌ Produto "${item.name}" não encontrado!`);
+        btnWhats.textContent = originalText;
+        btnWhats.disabled = false;
+        return;
+      }
+      
+      const produtoData = snap.data();
+      const stockAtual = produtoData.stock || 0;
+      
+      if (item.qty > stockAtual) {
+        alert(`❌ Estoque insuficiente:\n\n"${item.name}"\n• Pedido: ${item.qty}\n• Disponível: ${stockAtual}`);
+        btnWhats.textContent = originalText;
+        btnWhats.disabled = false;
+        return;
+      }
+    }
+
+    // ✅ 2º PASSO: RESERVAR ESTOQUE
+    for (const item of cart) {
+      const produtoRef = db.collection('produtos').doc(item.id);
+      const snap = await produtoRef.get();
+      const produtoData = snap.data();
+      const stockAtual = produtoData.stock || 0;
+      
+      await produtoRef.update({
+        stock: stockAtual - item.qty
+      });
+    }
+
+    // ✅ 3º PASSO: BUSCAR NÚMERO DO WHATSAPP
+    let numeroWhatsApp = ''; // Removido número fixo
+    
+    try {
+      const whatsSnap = await db.collection('config').doc('whatsapp').get();
+      if (whatsSnap.exists && whatsSnap.data().numero) {
+        numeroWhatsApp = whatsSnap.data().numero.replace(/\D/g, '');
+        console.log('✅ Usando número do Firebase:', numeroWhatsApp);
+      }
+    } catch (error) {
+      console.log('Número não configurado');
+    }
+
+    // Verificar se tem número configurado
+    if (!numeroWhatsApp || numeroWhatsApp.trim() === '') {
+      alert('❌ Número do WhatsApp não configurado!\n\nConfigure no painel admin primeiro.');
+      btnWhats.textContent = originalText;
+      btnWhats.disabled = false;
+      return;
+    }
+
+    // ✅ 4º PASSO: MONTAR MENSAGEM SIMPLIFICADA
+    const name = document.getElementById('clientName')?.value.trim() || 'Não informado';
+    const phone = document.getElementById('clientPhone')?.value.trim() || 'Não informado';
+    const address = document.getElementById('clientAddress')?.value.trim() || 'Não informado';
+    const locationLink = document.getElementById('clientLocation')?.value.trim() || 'Não informado';
+
+    let troco = document.getElementById('clientTroco')?.value.trim() || 'Não precisa de troco';
+
+    let msg = '*🛒 NOVO PEDIDO - HORTIFRUTI* 🛒\n\n';
+    msg += `*Cliente:* ${name}\n`;
+    msg += `*Telefone:* ${phone}\n`;
+    msg += `*Endereço:* ${address}\n`;
+    msg += `*Troco:* ${troco}\n\n`;
+    
+    if (locationLink && locationLink !== 'Não informado') {
+      msg += `*Localização:* ${locationLink}\n\n`;
+    }
+    
+    msg += '*PRODUTOS:*\n';
+    
+    let totalPedido = 0;
+    cart.forEach((item, index) => {
+      const totalItem = item.unitPrice * item.qty;
+      totalPedido += totalItem;
+      
+      msg += `${index + 1}. ${item.name}\n`;
+      msg += `   Qtd: ${item.qty} (${item.mode})\n`;
+      msg += `   R$ ${formatBRL(totalItem)}\n\n`;
+    });
+    
+    msg += `*TOTAL: ${formatBRL(totalPedido)}*\n\n`;
+    msg += `_💖Agradecemos pela sua preferência_\n`;
+    msg += `_🛒seu pedigo já está sendo providenciado_\n`;
+    msg += `*Chave PIX:* ${rawPixPhone || 'Não configurada'}\n`;
+    msg += `*Data:* ${new Date().toLocaleDateString('pt-BR')}`;
+
+    // ✅ 5º PASSO: CRIAR URL DO WHATSAPP
+    const mensagemCodificada = encodeURIComponent(msg);
+    const urlWhatsApp = `https://wa.me/${numeroWhatsApp}?text=${mensagemCodificada}`;
+    
+    console.log('🔗 URL WhatsApp:', urlWhatsApp);
+    console.log('📱 Número:', numeroWhatsApp);
+
+    // ✅ 6º PASSO: LIMPAR CARRINHO
+    cart = [];
+    saveCart();
+    renderCart();
+    carregarProdutos();
+
+    // ✅ 7º PASSO: ABRIR WHATSAPP - MÉTODO DIRETO E FUNCIONAL
+    // Primeiro, mostrar confirmação
+    const confirmacao = confirm(
+      `✅ PEDIDO PROCESSADO!\n\n` +
+      `Será enviado para: ${numeroWhatsApp}\n` +
+      `Total: ${formatBRL(totalPedido)}\n\n` +
+      `Abrir WhatsApp agora?`
+    );
+    
+    if (confirmacao) {
+      console.log('🌐 Abrindo WhatsApp...');
+      
+      // Método 1: Tentar abrir em nova janela
+      const novaJanela = window.open(urlWhatsApp, '_blank');
+      
+      // Se pop-up for bloqueado, usar método alternativo
+      setTimeout(() => {
+        if (!novaJanela || novaJanela.closed) {
+          console.log('⚠️ Pop-up bloqueado, usando método alternativo...');
+          
+          // Método 2: Redirecionar para WhatsApp Web
+          const urlWhatsAppWeb = `https://web.whatsapp.com/send?phone=${numeroWhatsApp}&text=${mensagemCodificada}`;
+          
+          // Mostrar instruções
+          alert(
+            '📱 Pop-up bloqueado!\n\n' +
+            'Para enviar o pedido:\n' +
+            '1. Clique OK\n' +
+            '2. WhatsApp Web será aberto\n' +
+            '3. Clique em "Enviar" no WhatsApp\n\n' +
+            'Ou envie manualmente para: ' + numeroWhatsApp
+          );
+          
+          // Abrir WhatsApp Web
+          window.open(urlWhatsAppWeb, '_blank');
+        }
+      }, 500);
+      
+      // Feedback final
+      setTimeout(() => {
+        alert('✅ Pedido finalizado!\n\nWhatsApp aberto. Envie a mensagem e aguarde confirmação.');
+      }, 1000);
+    } else {
+      alert('⚠️ Pedido processado mas não enviado.\nO carrinho foi limpo.');
+    }
+
+  } catch (error) {
+    console.error('❌ Erro:', error);
+    alert('❌ Erro ao processar pedido. Tente novamente.\n\nErro: ' + error.message);
+  } finally {
+    // Reativar botão
+    setTimeout(() => {
+      btnWhats.textContent = originalText;
+      btnWhats.disabled = false;
+    }, 2000);
+  }
+}
+
+// =========================
+// FUNÇÃO CONTINUAR COMPRANDO - CORRIGIDA
+// =========================
+function continuarComprando() {
+  console.log('🔄 Voltando para catálogo...');
+  document.getElementById('cartCard').style.display = 'none';
+  document.getElementById('catalogCard').style.display = 'block';
+}
+
+// =========================
+// FUNÇÃO PARA INICIAR TIMEOUT DA SESSÃO (30 minutos)
+// =========================
+function iniciarTimeoutAdmin() {
+  if (adminSessaoTimeout) {
+    clearTimeout(adminSessaoTimeout);
+  }
+  
+  adminSessaoTimeout = setTimeout(() => {
+    adminAutenticado = false;
+    alert('⏰ Sessão do admin expirada! Faça login novamente.');
+  }, 5 * 60 * 1000); // 30 minutos
+}
+
+// =========================
+// FUNÇÃO PARA VALIDAÇÃO INICIAL (APENAS UMA VEZ) - VERSÃO CORRIGIDA
+// =========================
+function askAdminPassword(callback) {
+  const modal = document.createElement('div');
+  modal.style.position = 'fixed';
+  modal.style.inset = '0';
+  modal.style.background = 'rgba(0,0,0,0.7)';
+  modal.style.display = 'flex';
+  modal.style.alignItems = 'center';
+  modal.style.justifyContent = 'center';
+  modal.style.zIndex = 3000;
+
+  const box = document.createElement('div');
+  box.style.background = '#fff';
+  box.style.padding = '25px';
+  box.style.borderRadius = '12px';
+  box.style.textAlign = 'center';
+  box.style.boxShadow = '0 10px 30px rgba(0,0,0,0.3)';
+  box.style.width = '90%';
+  box.style.maxWidth = '400px';
+  
+  // Usar template string corretamente
+  box.innerHTML = `
+    <h2 style="margin: 0 0 15px 0; color: #2c3e50;">🔐 Acesso Administrativo</h2>
+    <p style="color: #7f8c8d; margin-bottom: 20px;">
+      Digite a senha para acessar o painel de controle
+    </p>
+    
+    <input type="password" 
+           id="adminPwdInput" 
+           placeholder="Digite a senha de administrador"
+           style="
+             padding: 12px;
+             width: 100%;
+             border-radius: 8px;
+             border: 2px solid #3498db;
+             font-size: 16px;
+             box-sizing: border-box;
+             margin-bottom: 15px;
+           "
+           autocomplete="current-password">
+    
+    <div style="display: flex; gap: 10px; justify-content: center;">
+      <button id="adminCancelBtn" 
+        style="
+          background: #e74c3c;
+          color: white;
+          border: none;
+          padding: 12px 20px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: bold;
+          flex: 1;
+        ">
+        Cancelar
+      </button>
+      
+      <button id="adminPwdBtn" 
+        style="
+          background: #27ae60;
+          color: white;
+          border: none;
+          padding: 12px 20px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: bold;
+          flex: 1;
+        ">
+        Entrar
+      </button>
+    </div>
+    
+    <div style="margin-top: 15px; color: #95a5a6; font-size: 12px;">
+      ⏰ Sessão válida por 30 minutos
+    </div>
+  `;
+  
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+
+  // Focar no input
+  const adminPwdInput = document.getElementById('adminPwdInput');
+  if (adminPwdInput) {
+    adminPwdInput.focus();
+  }
+
+  // Enter para submeter
+  if (adminPwdInput) {
+    adminPwdInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        const adminPwdBtn = document.getElementById('adminPwdBtn');
+        if (adminPwdBtn) adminPwdBtn.click();
+      }
+    });
+  }
+
+  // Botão Cancelar
+  const adminCancelBtn = document.getElementById('adminCancelBtn');
+  if (adminCancelBtn) {
+    adminCancelBtn.addEventListener('click', () => {
+      modal.remove();
+    });
+  }
+
+  // Botão Entrar
+  const adminPwdBtn = document.getElementById('adminPwdBtn');
+  if (adminPwdBtn) {
+    adminPwdBtn.addEventListener('click', async () => {
+      const senhaDigitada = adminPwdInput ? adminPwdInput.value : '';
+      
+      if (!senhaDigitada.trim()) {
+        alert('Digite a senha para continuar!');
+        return;
+      }
+      
+      // 🔒 CORREÇÃO: Hash da senha digitada
+      const senhaHash = await hashSenha(senhaDigitada);
+      modal.remove();
+      callback(senhaHash); // Envia o hash, não a senha em texto claro
+    });
+  }
+}
+
+
+// =========================
+// FUNÇÃO PARA VERIFICAR SENHA DO ADMINISTRADOR
+// =========================
+async function verificarSenhaAdmin(senhaHash) {
+  try {
+    const adminSnap = await db.collection('config').doc('admin').get();
+    
+    if (!adminSnap.exists) {
+      // Se não existir configuração, solicitar ao usuário
+      const novaSenha = prompt(
+        '🔐 PRIMEIRO ACESSO - CONFIGURAR SENHA ADMIN\n\n' +
+        'Este é o primeiro acesso ao sistema.\n' +
+        'Digite uma senha para o administrador:'
+      );
+      
+      if (!novaSenha || novaSenha.trim() === '') {
+        alert('❌ Senha é obrigatória para primeiro acesso!');
+        return false;
+      }
+      
+      if (novaSenha.length < 4) {
+        alert('❌ A senha deve ter pelo menos 4 caracteres!');
+        return false;
+      }
+      
+      const novaSenhaHash = await hashSenha(novaSenha);
+      
+      await db.collection('config').doc('admin').set({
+        senha: novaSenhaHash,
+        criadoEm: new Date().toISOString(),
+        primeiroAcesso: true,
+        criadoPor: 'sistema'
+      });
+      
+      // Log da criação
+      await sistemaLogs.registrar('admin_criado', {
+        motivo: 'primeiro_acesso',
+        ip: await getUserIP()
+      });
+      
+      alert('✅ Senha admin configurada com sucesso!\n\nGuarde esta senha em local seguro.');
+      return senhaHash === novaSenhaHash;
+    }
+    
+    const dadosAdmin = adminSnap.data();
+    return senhaHash === dadosAdmin.senha;
+    
+  } catch (error) {
+    console.error('Erro ao verificar senha admin:', error);
+    return false;
+  }
+}
+
+// =========================
+// FUNÇÃO PARA VERIFICAR SENHA DO WHATSAPP (NOVA)
+// =========================
+async function verificarSenhaWhatsApp(senhaDigitada) {
+  try {
+    const whatsappSenhaSnap = await db.collection('config').doc('whatsapp_senha').get();
+    
+    if (!whatsappSenhaSnap.exists) {
+      // Se não existir, solicitar ao usuário
+      const novaSenhaWhatsApp = prompt(
+        '📱 PRIMEIRA CONFIGURAÇÃO WHATSAPP\n\n' +
+        'Digite uma senha para configurar o WhatsApp:\n' +
+        '(Esta senha será usada apenas para acessar configurações do WhatsApp)'
+      );
+      
+      if (!novaSenhaWhatsApp || novaSenhaWhatsApp.trim() === '') {
+        alert('❌ Senha do WhatsApp é obrigatória!');
+        return false;
+      }
+      
+      if (novaSenhaWhatsApp.length < 4) {
+        alert('❌ A senha do WhatsApp deve ter pelo menos 4 caracteres!');
+        return false;
+      }
+      
+      const novaSenhaHash = await hashSenha(novaSenhaWhatsApp);
+      
+      await db.collection('config').doc('whatsapp_senha').set({
+        hash: novaSenhaHash,
+        criadoEm: new Date().toISOString(),
+        primeiroAcesso: true
+      });
+      
+      alert('✅ Senha do WhatsApp configurada!\n\nGuarde esta senha em local seguro.');
+      
+      const senhaHashDigitada = await hashSenha(senhaDigitada);
+      return senhaHashDigitada === novaSenhaHash;
+    }
+    
+    const dadosWhatsAppSenha = whatsappSenhaSnap.data();
+    const senhaHashDigitada = await hashSenha(senhaDigitada);
+    return senhaHashDigitada === dadosWhatsAppSenha.hash;
+    
+  } catch (error) {
+    console.error('Erro ao verificar senha WhatsApp:', error);
+    return false;
+  }
+}
+
+// =========================
+// FUNÇÃO PARA VERIFICAR SENHA DO TÉCNICO (EXCLUSIVA) - NOVA
+// =========================
+async function verificarSenhaTecnico(senhaHash) {
+  try {
+    const tecnicoSnap = await db.collection('config').doc('tecnico_senha').get();
+    
+    if (!tecnicoSnap.exists) {
+      // Se não existir configuração, criar com senha padrão
+      const senhaPadrao = "tecnico123"; // Senha padrão inicial
+      const senhaPadraoHash = await hashSenha(senhaPadrao);
+      
+      await db.collection('config').doc('tecnico_senha').set({
+        senha: senhaPadraoHash,
+        criadoEm: new Date().toISOString(),
+        primeiroAcesso: true,
+        tipo: "modo_tecnico",
+        obs: "Altere esta senha após o primeiro acesso"
+      });
+      
+      // Log da criação
+      await sistemaLogs.registrar('senha_tecnico_criada', {
+        motivo: 'primeiro_acesso',
+        senha_padrao: true,
+        ip: await getUserIP()
+      });
+      
+      console.log('✅ Senha do técnico criada com padrão:', senhaPadrao);
+      
+      // Mostrar alerta com a senha padrão
+      alert(
+        '🔧 PRIMEIRO ACESSO MODO TÉCNICO!\n\n' +
+        'Senha padrão: ' + senhaPadrao + '\n\n' +
+        '⚠️ RECOMENDA-SE ALTERAR APÓS O PRIMEIRO ACESSO!\n\n' +
+        'Acesse o modo técnico e use a opção "Alterar Senha Técnico"'
+      );
+      
+      return senhaHash === senhaPadraoHash;
+    }
+    
+    const dadosTecnico = tecnicoSnap.data();
+    return senhaHash === dadosTecnico.senha;
+    
+  } catch (error) {
+    console.error('Erro ao verificar senha técnico:', error);
+    return false;
+  }
+}
+
+// =========================
+// FUNÇÃO PARA VERIFICAR SENHA DO PIX
+// =========================
+async function verificarSenhaPix(senhaDigitada) {
+  try {
+    const pixSenhaSnap = await db.collection('config').doc('pix_senha').get();
+    
+    if (!pixSenhaSnap.exists) {
+      // Se não existir, solicitar ao usuário
+      const novaSenhaPix = prompt(
+        '💰 PRIMEIRA CONFIGURAÇÃO PIX\n\n' +
+        'Digite uma senha para configurar o PIX:\n' +
+        '(Esta senha será usada apenas para acessar configurações do PIX)'
+      );
+      
+      if (!novaSenhaPix || novaSenhaPix.trim() === '') {
+        alert('❌ Senha do PIX é obrigatória!');
+        return false;
+      }
+      
+      if (novaSenhaPix.length < 6) {
+        alert('❌ A senha do PIX deve ter pelo menos 6 caracteres!');
+        return false;
+      }
+      
+      const novaSenhaHash = await hashSenha(novaSenhaPix);
+      
+      await db.collection('config').doc('pix_senha').set({
+        hash: novaSenhaHash,
+        criadoEm: new Date().toISOString(),
+        primeiroAcesso: true
+      });
+      
+      alert('✅ Senha do PIX configurada!\n\nGuarde esta senha em local seguro.');
+      
+      const senhaHashDigitada = await hashSenha(senhaDigitada);
+      return senhaHashDigitada === novaSenhaHash;
+    }
+    
+    const dadosPixSenha = pixSenhaSnap.data();
+    const senhaHashDigitada = await hashSenha(senhaDigitada);
+    return senhaHashDigitada === dadosPixSenha.hash;
+    
+  } catch (error) {
+    console.error('Erro ao verificar senha PIX:', error);
+    return false;
+  }
+}
+
+// =========================
+// FUNÇÃO PARA RESETAR SENHAS PADRÃO (MODIFICADA)
+// =========================
+window.resetarSenhasPadrao = async function() {
+  console.log('🔄 Resetando senhas...');
+  
+  if (!confirm('⚠️ RESETAR SENHAS?\n\n' +
+              'Isso irá:\n' +
+              '• Solicitar nova senha para admin\n' +
+              '• Solicitar nova senha para PIX\n' +
+              '• Solicitar nova senha para WhatsApp\n' +
+              '• Solicitar nova senha para técnico\n\n' +
+              '⚠️ Use apenas se esquecer as senhas!\n\n' +
+              'Continuar?')) {
+    return;
+  }
+  
+  try {
+    // Solicitar nova senha admin
+    const novaSenhaAdmin = prompt(
+      '🔑 NOVA SENHA ADMIN\n\n' +
+      'Digite a nova senha para administrador:'
+    );
+    
+    if (!novaSenhaAdmin || novaSenhaAdmin.length < 4) {
+      alert('❌ Senha admin inválida! Mínimo 4 caracteres.');
+      return;
+    }
+    
+    // Solicitar nova senha PIX
+    const novaSenhaPix = prompt(
+      '💰 NOVA SENHA PIX\n\n' +
+      'Digite a nova senha para o PIX:'
+    );
+    
+    if (!novaSenhaPix || novaSenhaPix.length < 6) {
+      alert('❌ Senha PIX inválida! Mínimo 6 caracteres.');
+      return;
+    }
+    
+    // Solicitar nova senha WhatsApp
+    const novaSenhaWhatsApp = prompt(
+      '📱 NOVA SENHA WHATSAPP\n\n' +
+      'Digite a nova senha para o WhatsApp:'
+    );
+    
+    if (!novaSenhaWhatsApp || novaSenhaWhatsApp.length < 4) {
+      alert('❌ Senha WhatsApp inválida! Mínimo 4 caracteres.');
+      return;
+    }
+    
+    // Solicitar nova senha TÉCNICO
+    const novaSenhaTecnico = prompt(
+      '🔧 NOVA SENHA MODO TÉCNICO\n\n' +
+      'Digite a nova senha para o modo técnico:'
+    );
+    
+    if (!novaSenhaTecnico || novaSenhaTecnico.length < 4) {
+      alert('❌ Senha técnico inválida! Mínimo 4 caracteres.');
+      return;
+    }
+    
+    // Calcular hashes
+    const senhaAdminHash = await hashSenha(novaSenhaAdmin);
+    const senhaPixHash = await hashSenha(novaSenhaPix);
+    const senhaWhatsAppHash = await hashSenha(novaSenhaWhatsApp);
+    const senhaTecnicoHash = await hashSenha(novaSenhaTecnico);
+    
+    // Atualizar no Firebase
+    await db.collection('config').doc('admin').set({
+      senha: senhaAdminHash,
+      resetadoEm: new Date().toISOString(),
+      motivo: 'reset_manual'
+    }, { merge: true });
+    
+    await db.collection('config').doc('pix_senha').set({
+      hash: senhaPixHash,
+      resetadoEm: new Date().toISOString(),
+      motivo: 'reset_manual'
+    }, { merge: true });
+    
+    await db.collection('config').doc('whatsapp_senha').set({
+      hash: senhaWhatsAppHash,
+      resetadoEm: new Date().toISOString(),
+      motivo: 'reset_manual'
+    }, { merge: true });
+    
+    await db.collection('config').doc('tecnico_senha').set({
+      senha: senhaTecnicoHash,
+      resetadoEm: new Date().toISOString(),
+      motivo: 'reset_manual'
+    }, { merge: true });
+    
+    // Log
+    await sistemaLogs.registrar('senhas_resetadas', {
+      tipo: 'manual',
+      por: auth.currentUser?.uid,
+      ip: await getUserIP()
+    });
+    
+    alert(
+      `✅ SENHAS REDEFINIDAS!\n\n` +
+      `🔑 ADMINISTRADOR:\n` +
+      `• Nova senha: ${novaSenhaAdmin}\n\n` +
+      `💰 PIX:\n` +
+      `• Nova senha: ${novaSenhaPix}\n\n` +
+      `📱 WHATSAPP:\n` +
+      `• Nova senha: ${novaSenhaWhatsApp}\n\n` +
+      `🔧 TÉCNICO:\n` +
+      `• Nova senha: ${novaSenhaTecnico}\n\n` +
+      `⚠️ Anote estas senhas em local seguro!`
+    );
+    
+    console.log('✅ Senhas redefinidas');
+    
+  } catch (error) {
+    console.error('❌ Erro ao resetar senhas:', error);
+    alert('❌ Erro: ' + error.message);
+  }
+};
+
+// =========================
+// REMOVER QUALQUER REFERÊNCIA A SENHAS FIXAS
+// =========================
+
+// Substitua TODAS as ocorrências de senhas hardcoded:
+
+// 1. Na função inicializarSenhasSeguras (se existir):
+async function inicializarSenhasSeguras() {
+  // REMOVA qualquer criação automática de senhas
+  console.log('⚠️ Sistema requer configuração manual de senhas no primeiro acesso');
+}
+
+// =========================
+// ADMIN PANEL - FUNÇÃO PRINCIPAL CORRIGIDA
+// =========================
+async function renderAdminProducts() {
+  // Se já está autenticado, abre direto
+  if (adminAutenticado) {
+    await renderAdminProductsContent();
+    iniciarTimeoutAdmin();
+    return;
+  }
+  
+  // Se não está autenticado, pede senha
+  askAdminPassword(async (senhaHashDigitada) => {
+    try {
+      const senhaValida = await verificarSenhaAdmin(senhaHashDigitada);
+      
+      if (!senhaValida) { 
+        // 📝 LOG DE TENTATIVA FALHA
+        await sistemaLogs.registrar('login_admin_falha', {
+          motivo: 'senha_incorreta',
+          ip: await getUserIP()
+        });
+        
+        alert('Senha incorreta!'); 
+        return; 
+      }
+      
+      adminAutenticado = true;
+      
+      // 📝 LOG DE ACESSO BEM-SUCEDIDO
+      await sistemaLogs.registrar('login_admin_sucesso', {
+        userId: auth.currentUser?.uid,
+        adminId: 'admin_sistema'
+      });
+      
+      await renderAdminProductsContent();
+      iniciarTimeoutAdmin();
+      
+    } catch (error) {
+      alert('Erro ao verificar senha: ' + error.message);
+    }
+  });
+}
+
+// =========================
+// FUNÇÃO PRINCIPAL DO PAINEL ADMIN - VERSÃO CORRIGIDA DEFINITIVA
+// =========================
+async function renderAdminProductsContent() {
+  const snap = await db.collection('produtos').get();
+
+  const modalDiv = document.createElement('div');
+  modalDiv.className = 'modal-backdrop';
+  
+  const modalContent = document.createElement('div');
+  modalContent.className = 'modal';
+  
+  // CABEÇALHO DO PAINEL - BOTÃO JÁ CONFIGURADO ANTES DE ADICIONAR AO DOM
+  const header = document.createElement('div');
+  header.style.cssText = `
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #eee;
+`;
+
+// BOTÃO FECHAR CRIADO COM EVENTO DIRETO (SOLUÇÃO DEFINITIVA)
+const closeBtn = document.createElement('button');
+closeBtn.id = 'adminCloseBtn';
+closeBtn.textContent = '✅ Fechar Painel';
+closeBtn.style.cssText = `
+  background: #2ecc71 !important;
+  color: white !important;
+  border: none !important;
+  padding: 10px 20px !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  font-weight: bold !important;
+  font-size: 15px !important;
+  box-shadow: 0 4px 15px rgba(46, 204, 113, 0.7) !important;
+  position: relative !important;
+  z-index: 9999 !important;
+  min-width: 140px !important;
+  text-align: center !important;
+`;
+
+// EVENTO DIRETO NO BOTÃO (ANTES de adicionar ao DOM)
+closeBtn.onclick = function(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+  }
+  
+  console.log('✅ Botão Fechar clicado - Fechando painel...');
+  
+  // Remover modal DIRETAMENTE
+  const modal = document.querySelector('.modal-backdrop');
+  if (modal) {
+    modal.remove();
+  }
+  
+  // Limpar timeout da sessão
+  if (adminSessaoTimeout) {
+    clearTimeout(adminSessaoTimeout);
+    adminSessaoTimeout = null;
+  }
+  
+  // Recarregar produtos
+  if (typeof carregarProdutos === 'function') {
+    setTimeout(() => {
+      carregarProdutos();
+    }, 300);
+  }
+  
+  return false;
+};
+
+header.innerHTML = `
+  <h2 style="margin: 0; color: #2c3e50;">📊 Painel Administrativo</h2>
+  <div style="display: flex; gap: 10px; align-items: center;">
+    <span style="font-size: 12px; color: #27ae60; background: #eafaf1; padding: 4px 8px; border-radius: 4px;">
+      ✅ Autenticado
+    </span>
+  </div>
+`;
+
+// Adicionar o botão ao header
+header.querySelector('div').appendChild(closeBtn);
+  
+  modalContent.appendChild(header);
+
+  // BARRA DE PESQUISA
+  const searchBar = document.createElement('input');
+  searchBar.placeholder = "🔍 Pesquisar produto por nome ou descrição...";
+  searchBar.style.cssText = `
+    padding: 12px;
+    margin-bottom: 15px;
+    font-size: 16px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    width: 100%;
+    box-sizing: border-box;
+  `;
+  
+  modalContent.appendChild(searchBar);
+
+  // CONTÊINER DOS PRODUTOS
+  const container = document.createElement('div');
+  container.id = 'adminProductsList';
+  container.style.display = 'flex';
+  container.style.flexDirection = 'column';
+  container.style.gap = '12px';
+  container.style.maxHeight = '50vh';
+  container.style.overflowY = 'auto';
+  container.style.paddingRight = '5px';
+  
+  modalContent.appendChild(container);
+
+  // BARRA DE FERRAMENTAS (BOTÕES DE AÇÃO)
+  const toolbar = document.createElement('div');
+  toolbar.style.cssText = `
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 15px 0;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+  `;
+  
+  // BOTÃO CADASTRAR PRODUTO
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn';
+  addBtn.style.cssText = 'background: #27ae60; color: #fff; margin: 0; flex: 1; min-width: 200px;';
+  addBtn.innerHTML = '<i class="fa-solid fa-plus" style="margin-right:6px;"></i> Cadastrar Novo Produto';
+  addBtn.addEventListener('click', async () => {
+    const name = prompt('Nome do produto:');
+    if (!name) {
+      alert('Nome do produto é obrigatório!');
+      return;
+    }
+    
+    const desc = prompt('Descrição:');
+    const priceUnit = prompt('Preço por unidade (deixe vazio se não aplicar):');
+    const priceKg = prompt('Preço por kg (deixe vazio se não aplicar):');
+    const oldPrice = prompt('Preço antigo (para promoção, deixe vazio se não aplicar):');
+    const img = prompt('URL da imagem:');
+    const stock = prompt('Quantidade em estoque:');
+    
+    try {
+      await db.collection('produtos').add({
+        name,
+        desc: desc || '',
+        priceUnit: priceUnit ? Number(priceUnit) : null,
+        priceKg: priceKg ? Number(priceKg) : null,
+        oldPrice: oldPrice ? Number(oldPrice) : null,
+        img: img || 'https://via.placeholder.com/400x300?text=Sem+imagem',
+        stock: stock ? Number(stock) : 0,
+        active: true,
+        criadoEm: new Date().toISOString()
+      });
+      
+      alert('✅ Produto cadastrado com sucesso!');
+      // Recarregar a lista sem fechar o painel
+      renderAdminProductsContent();
+      
+    } catch (error) {
+      alert('❌ Erro ao cadastrar produto: ' + error.message);
+    }
+  });
+  
+  toolbar.appendChild(addBtn);
+
+  // BOTÃO REPOSIÇÃO DE ESTOQUE
+  const estoqueRapidoBtn = document.createElement('button');
+  estoqueRapidoBtn.className = 'btn';
+  estoqueRapidoBtn.style.cssText = 'background: #16a085; color: #fff; margin: 0; flex: 1; min-width: 200px;';
+  estoqueRapidoBtn.innerHTML = '📦 Reposição Rápida de Estoque';
+  estoqueRapidoBtn.addEventListener('click', async () => {
+    if (typeof reporEstoqueManual === 'function') {
+      await reporEstoqueManual();
+    } else {
+      alert('Função não carregada. Use o console: reporEstoqueManual()');
+    }
+  });
+  
+  toolbar.appendChild(estoqueRapidoBtn);
+
+ // BOTÃO CONFIGURAR PIX (COM VALIDAÇÃO DA CHAVE)
+const pixConfigBtn = document.createElement('button');
+pixConfigBtn.className = 'btn';
+pixConfigBtn.style.cssText = 'background: #9b59b6; color: #fff; margin: 0; flex: 1; min-width: 200px;';
+pixConfigBtn.textContent = '💰 Configurar PIX Completo';
+
+pixConfigBtn.addEventListener('click', async () => {
+    // 🔒 USANDO MODAL COM ESTRELINHAS PARA SENHA
+    const senhaPix = await criarModalSenha();
+    
+    if (senhaPix === null) {
+        console.log('Configuração de PIX cancelada pelo usuário');
+        return;
+    }
+    
+    if (!senhaPix || senhaPix.trim() === '') {
+        alert('❌ Senha é obrigatória!');
+        return;
+    }
+    
+    // Verificar senha do PIX usando função segura
+    const senhaValida = await verificarSenhaPix(senhaPix);
+    
+    if (!senhaValida) {
+        await sistemaLogs.registrar('config_pix_falha', {
+            motivo: 'senha_incorreta',
+            ip: await getUserIP()
+        });
+        alert('❌ Senha do PIX incorreta!');
+        return;
+    }
+    
+    // LOG DE ACESSO
+    console.log('✅ Acesso autorizado para configurar PIX');
+    
+    try {
+        const pixAtual = await db.collection('config').doc('pix').get();
+        const dadosAtuais = pixAtual.exists ? pixAtual.data() : {};
+        
+        // 🔧 FUNÇÃO PARA VALIDAR CHAVE PIX COM MENSAGEM CLARA
+        function validarChavePIX(chave) {
+            // Remove espaços
+            chave = chave.trim();
+            
+            // Caso 1: Já está no formato correto (+55XXXXXXXXXXX)
+            if (chave.startsWith('+55') && chave.length === 14) {
+                const apenasNumeros = chave.replace(/\D/g, '');
+                if (apenasNumeros.length === 13) {
+                    return {
+                        valido: true,
+                        chaveFormatada: chave,
+                        mensagem: '✅ Formato correto!'
+                    };
+                }
+            }
+            
+            // Caso 2: Tem 13 dígitos mas sem o +55
+            const apenasNumeros = chave.replace(/\D/g, '');
+            
+            if (apenasNumeros.length === 11) {
+                return {
+                    valido: false,
+                    chaveFormatada: '',
+                    mensagem: `❌ ERRO: A chave tem apenas ${apenasNumeros.length} dígitos!\n\n` +
+                             `Você digitou: ${chave}\n\n` +
+                             `📱 Formato correto para CELULAR:\n` +
+                             `• Digite: +5581986176915\n` +
+                             `• Começa com: +55\n` +
+                             `• Total: 14 caracteres (com +)\n\n` +
+                             `⚠️ O "+55" é OBRIGATÓRIO!`
+                };
+            }
+            
+            if (apenasNumeros.length === 12) {
+                return {
+                    valido: false,
+                    chaveFormatada: '',
+                    mensagem : `❌ ERRO: A chave tem ${apenasNumeros.length} dígitos!\n\n` +
+                             `Você digitou: ${chave}\n\n` +
+                             `📱 Formato correto para CELULAR:\n` +
+                             `• Digite: +5581986176915\n` +
+                             `• Começa com: +55\n` +
+                             `• Total: 14 caracteres (com +)\n\n` +
+                             `⚠️ Faltam dígitos! Verifique o número completo.`
+                };
+            }
+            
+            if (apenasNumeros.length === 13) {
+                // Tem 13 dígitos, só falta o +55
+                const chaveCorrigida = `+55${apenasNumeros}`;
+                return {
+                    valido: true,
+                    chaveFormatada: chaveCorrigida,
+                    mensagem: `⚠️ ATENÇÃO: Formatando automaticamente!\n\n` +
+                             `Você digitou: ${chave}\n` +
+                             `Será salvo como: ${chaveCorrigida}\n\n` +
+                             `✅ Pronto! A chave foi corrigida.`
+                };
+            }
+            
+            if (apenasNumeros.length === 14 && !chave.startsWith('+55')) {
+                // Tem 14 dígitos mas sem o +55
+                const chaveCorrigida = `+55${apenasNumeros}`;
+                return {
+                    valido: false,
+                    chaveFormatada: '',
+                    mensagem: `❌ ERRO: Formato inválido!\n\n` +
+                             `Você digitou: ${chave}\n\n` +
+                             `📱 Formato correto para CELULAR:\n` +
+                             `• Digite: +5581986176915\n` +
+                             `• Começa com: +55\n` +
+                             `• Total: 14 caracteres (com +)\n\n` +
+                             `⚠️ O número está muito longo. Verifique se não digitou o +55 duas vezes.`
+                };
+            }
+            
+            // Caso genérico
+            return {
+                valido: false,
+                chaveFormatada: '',
+                mensagem: `❌ FORMATO INVÁLIDO!\n\n` +
+                         `Você digitou: ${chave}\n\n` +
+                         `📱 EXEMPLOS CORRETOS:\n` +
+                         `• Celular: +5581986176915\n` +
+                         `• CPF: 123.456.789-09\n` +
+                         `• Email: email@exemplo.com\n` +
+                         `• Chave aleatória: 123e4567-e89b-12d3-a456-426614174000\n\n` +
+                         `🔍 Dica: Use o mesmo número que está no WhatsApp!`
+            };
+        }
+        
+        // 🔧 FUNÇÃO PARA PROMPT COM VALIDAÇÃO
+        function promptComValidacao(mensagem, valorPadrao, validarFuncao) {
+            let tentativas = 0;
+            const maxTentativas = 3;
+            
+            while (tentativas < maxTentativas) {
+                const entrada = prompt(
+                    `${mensagem}\n\n` +
+                    `Tentativa ${tentativas + 1} de ${maxTentativas}`,
+                    valorPadrao
+                );
+                
+                if (entrada === null) {
+                    return null; // Usuário cancelou
+                }
+                
+                const resultadoValidacao = validarFuncao(entrada);
+                
+                if (resultadoValidacao.valido) {
+                    // Se precisou corrigir, mostrar mensagem
+                    if (resultadoValidacao.mensagem.includes('Formatando automaticamente')) {
+                        const confirmar = confirm(
+                            `${resultadoValidacao.mensagem}\n\n` +
+                            `Deseja continuar com essa correção?`
+                        );
+                        
+                        if (confirmar) {
+                            return resultadoValidacao.chaveFormatada;
+                        } else {
+                            tentativas++;
+                            continue;
+                        }
+                    }
+                    
+                    return resultadoValidacao.chaveFormatada || entrada;
+                } else {
+                    // Mostrar erro específico
+                    alert(resultadoValidacao.mensagem);
+                    tentativas++;
+                    
+                    if (tentativas >= maxTentativas) {
+                        alert(`❌ Número máximo de tentativas atingido!\n\nOperação cancelada.`);
+                        return null;
+                    }
+                }
+            }
+            
+            return null;
+        }
+        
+        // 📱 CAMPO DA CHAVE PIX COM VALIDAÇÃO FORTE
+        let novaChave = null;
+        let chaveValida = false;
+        
+        while (!chaveValida) {
+            novaChave = promptComValidacao(
+                '✅ SENHA VÁLIDA!\n\n' +
+                '📱 DIGITE A CHAVE PIX:\n\n' +
+                '📋 FORMATOS ACEITOS:\n' +
+                '• Celular: +5581986176915 (COM +55)\n' +
+                '• CPF: 123.456.789-09\n' +
+                '• Email: email@exemplo.com\n' +
+                '• Chave aleatória\n\n' +
+                '⚠️ IMPORTANTE: Para celular, deve começar com +55\n\n' +
+                'Chave atual: ' + (dadosAtuais.chave || '(não configurada)'),
+                dadosAtuais.chave || '',
+                validarChavePIX
+            );
+            
+            if (novaChave === null) {
+                console.log('Configuração de PIX cancelada pelo usuário');
+                return; // Usuário cancelou
+            }
+            
+            // Validação final
+            const validacaoFinal = validarChavePIX(novaChave);
+            if (validacaoFinal.valido) {
+                chaveValida = true;
+                
+                // Se foi corrigida automaticamente, mostrar confirmação
+                if (validacaoFinal.chaveFormatada && validacaoFinal.chaveFormatada !== novaChave) {
+                    const confirmarCorrecao = confirm(
+                        `📱 CONFIRMAR CHAVE PIX\n\n` +
+                        `Você digitou: ${novaChave}\n` +
+                        `Será salvo como: ${validacaoFinal.chaveFormatada}\n\n` +
+                        `✅ Esta é a forma correta para o PIX!\n\n` +
+                        `Deseja continuar?`
+                    );
+                    
+                    if (!confirmarCorrecao) {
+                        chaveValida = false;
+                        continue;
+                    }
+                    
+                    novaChave = validacaoFinal.chaveFormatada;
+                }
+            }
+        }
+        
+        if (!novaChave || novaChave.trim() === '') {
+            alert('❌ Chave PIX é obrigatória!');
+            return;
+        }
+        
+        // 🔍 DETECTAR AUTOMATICAMENTE O TIPO DE CHAVE
+        function detectarTipoChaveAuto(chave) {
+            const limpa = chave.replace(/\D/g, '');
+            
+            if (limpa.length === 11) {
+                return 'cpf';
+            } else if (limpa.length === 14) {
+                return 'cnpj';
+            } else if (chave.includes('@')) {
+                return 'email';
+            } else if (chave.startsWith('+55') && limpa.length === 13) {
+                return 'celular';
+            } else if (/^[0-9]+$/.test(limpa) && limpa.length >= 10 && limpa.length <= 13) {
+                return 'telefone';
+            } else if (chave.includes('-')) {
+                return 'chave_aleatoria';
+            } else {
+                return 'outro';
+            }
+        }
+        
+        const tipoChave = detectarTipoChaveAuto(novaChave);
+        
+        // 📋 RESUMO PARA CONFIRMAÇÃO
+        const resumo = `
+        📊 RESUMO DA CONFIGURAÇÃO PIX:
+        
+        🔑 Chave: ${novaChave}
+        📱 TIPO: ${tipoChave.toUpperCase()}
+        
+        ⚠️ VERIFIQUE SE ESTÁ CORRETO:
+        ${tipoChave === 'celular' ? '• Começa com +55 ✓\n• 13 dígitos após +55 ✓' : ''}
+        ${tipoChave === 'cpf' ? '• 11 dígitos ✓' : ''}
+        ${tipoChave === 'email' ? '• Formato email@exemplo.com ✓' : ''}
+        
+        📝 Esta chave será usada para receber pagamentos!
+        `;
+        
+        const confirmar = confirm(resumo + '\n\n✅ Confirmar e salvar?');
+        
+        if (!confirmar) {
+            alert('❌ Configuração cancelada pelo usuário');
+            return;
+        }
+        
+        const nomeTitular = prompt(
+            '👤 NOME DO TITULAR DA CONTA\n\n' +
+            'Digite o NOME COMPLETO do titular da chave PIX:\n\n' +
+            'Nome atual: ' + (dadosAtuais.nomeTitular || '(não configurado)'),
+            dadosAtuais.nomeTitular || ''
+        );
+        
+        if (!nomeTitular || nomeTitular.trim() === '') {
+            alert('❌ Nome do titular é obrigatório!');
+            return;
+        }
+        
+        const cidadeTitular = prompt(
+            '🏙️ CIDADE DO TITULAR\n\n' +
+            'Digite a CIDADE do titular da conta:\n\n' +
+            'Cidade atual: ' + (dadosAtuais.cidadeTitular || '(não configurada)'),
+            dadosAtuais.cidadeTitular || ''
+        );
+        
+        if (!cidadeTitular || cidadeTitular.trim() === '') {
+            alert('❌ Cidade é obrigatória!');
+            return;
+        }
+        
+        // 🔧 **CORREÇÃO: Dados completos para o Firebase**
+        const dadosCompletosPix = {
+            chave: novaChave.trim(),
+            nomeTitular: nomeTitular.trim(),
+            cidadeTitular: cidadeTitular.trim(),
+            tipo: tipoChave,
+            
+            // **CAMPOS ADICIONAIS CRÍTICOS:**
+            isPixEnabled: true,
+            lastUpdated: new Date().toISOString(),
+            updatedBy: auth.currentUser?.uid,
+            
+            // Campos para compatibilidade com sistema de pagamento
+            rawPixPhone: novaChave.trim(),
+            sellerPhone: novaChave.trim(),
+            merchantName: nomeTitular.trim().toUpperCase(),
+            merchantCity: cidadeTitular.trim().toUpperCase(),
+            
+            // Informações adicionais para debug
+            formatoCorreto: tipoChave === 'celular' ? 'com_prefixo_internacional' : 'ok',
+            digitos: novaChave.replace(/\D/g, '').length
+        };
+        
+        await db.collection('config').doc('pix').set(dadosCompletosPix, { merge: true });
+        
+        // 🔧 **CORREÇÃO: Atualizar variáveis globais E sincronizar**
+        rawPixPhone = novaChave.trim();
+        sellerPhone = novaChave.trim();
+        merchantName = nomeTitular.trim().toUpperCase();
+        merchantCity = cidadeTitular.trim().toUpperCase();
+        
+        // 🔧 **CORREÇÃO: Disparar evento de atualização**
+        document.dispatchEvent(new CustomEvent('pixConfigUpdated', {
+            detail: dadosCompletosPix
+        }));
+        
+        // LOG DA CONFIGURAÇÃO
+        await db.collection('logs').add({
+            tipo: 'config_pix_atualizado',
+            adminId: auth.currentUser?.uid,
+            dados: {
+                chaveNova: '***' + novaChave.slice(-4),
+                tipoChave: tipoChave,
+                digitos: novaChave.replace(/\D/g, '').length,
+                temPrefixo: novaChave.startsWith('+55') ? 'sim' : 'não',
+                isPixEnabled: true
+            },
+            timestamp: new Date().toISOString(),
+            ip: await getUserIP()
+        });
+        
+        await sistemaLogs.registrar('config_pix_sucesso', {
+            chaveMascarada: '***' + novaChave.slice(-4),
+            tipoChave: tipoChave,
+            adminId: auth.currentUser?.uid,
+            isPixEnabled: true
+        });
+        
+        // 🎉 MENSAGEM DE SUCESSO DETALHADA
+        alert(
+            `✅ PIX CONFIGURADO COM SUCESSO!\n\n` +
+            `🔑 Chave: ${novaChave}\n` +
+            `📱 Tipo: ${tipoChave.toUpperCase()}\n` +
+            `👤 Titular: ${nomeTitular}\n` +
+            `🏙️ Cidade: ${cidadeTitular}\n\n` +
+            `💡 Dica: Para testar, faça uma compra e gere um QR Code PIX.\n` +
+            `O sistema já está pronto para receber pagamentos!`
+        );
+        
+    } catch (error) {
+        await sistemaLogs.registrar('config_pix_erro', {
+            erro: error.message,
+            adminId: auth.currentUser?.uid
+        });
+        alert('❌ Erro ao configurar PIX: ' + error.message);
+    }
+});
+
+toolbar.appendChild(pixConfigBtn);
+  // 🔧 **CORREÇÃO ADICIONAL: Adicionar função para determinar tipo de chave**
+  function determinarTipoChave(chave) {
+      // Remove caracteres não numéricos
+      const apenasNumeros = chave.replace(/\D/g, '');
+      
+      if (apenasNumeros.length === 11) return 'cpf';
+      if (apenasNumeros.length === 14) return 'cnpj';
+      if (/^(\d{10,11})$/.test(apenasNumeros)) return 'telefone';
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(chave)) return 'email';
+      return 'aleatoria';
+  }
+
+  // BOTÃO CONFIGURAR WHATSAPP (COM SENHA SEPARADA)
+  const configWhatsBtn = document.createElement('button');
+  configWhatsBtn.className = 'btn';
+  configWhatsBtn.style.cssText = 'background: #25D366; color: #fff; margin: 0; flex: 1; min-width: 200px;';
+  configWhatsBtn.innerHTML = '<i class="fab fa-whatsapp"></i> Configurar WhatsApp';
+  
+  configWhatsBtn.addEventListener('click', async () => {
+    try {
+      // 🔒 PEDIR SENHA DO WHATSAPP (SEPARADA)
+      const senhaWhatsApp = await criarModalSenhaWhatsApp();
+      
+      if (senhaWhatsApp === null) {
+        console.log('Configuração de WhatsApp cancelada pelo usuário');
+        return;
+      }
+      
+      if (!senhaWhatsApp || senhaWhatsApp.trim() === '') {
+        alert('❌ Senha é obrigatória!');
+        return;
+      }
+      
+      // Verificar senha do WhatsApp usando função específica
+      const senhaValida = await verificarSenhaWhatsApp(senhaWhatsApp);
+      
+      if (!senhaValida) {
+        await sistemaLogs.registrar('config_whatsapp_falha', {
+          motivo: 'senha_incorreta',
+          ip: await getUserIP()
+        });
+        alert('❌ Senha do WhatsApp incorreta!');
+        return;
+      }
+      
+      // LOG DE ACESSO
+      console.log('✅ Acesso autorizado para configurar WhatsApp');
+      
+      let numeroAtual = '';
+      try {
+        const whatsSnap = await db.collection('config').doc('whatsapp').get();
+        if (whatsSnap.exists && whatsSnap.data().numero) {
+          numeroAtual = whatsSnap.data().numero;
+        }
+      } catch (e) {
+        console.log('Número não configurado');
+      }
+      
+      const novoNumero = prompt(
+        '📱 CONFIGURAR WHATSAPP\n\n' +
+        'Digite o número para receber pedidos:\n' +
+        'Exemplo: 5581986176915\n\n' +
+        'Número atual: ' + (numeroAtual || 'Não configurado'),
+        numeroAtual
+      );
+      
+      if (novoNumero && novoNumero.trim() !== '') {
+        const numeroLimpo = novoNumero.trim().replace(/\D/g, '');
+        
+        if (numeroLimpo.length < 10) {
+          alert('❌ Número inválido! Mínimo 10 dígitos.');
+          return;
+        }
+        
+        await db.collection('config').doc('whatsapp').set({ 
+          numero: numeroLimpo,
+          atualizadoEm: new Date().toISOString()
+        }, { merge: true });
+        
+        await sistemaLogs.registrar('config_whatsapp', {
+            numeroMascarado: '***' + numeroLimpo.slice(-4),
+            adminId: auth.currentUser?.uid
+        });
+        
+        alert(`✅ WhatsApp configurado!\n\nNúmero: ${numeroLimpo}`);
+      }
+      
+    } catch (error) {
+      alert('❌ Erro: ' + error.message);
+    }
+  });
+  
+  toolbar.appendChild(configWhatsBtn);
+
+  // BOTÃO ATIVAR/DESATIVAR CARRINHO
+  const cartBtn = document.createElement('button');
+  cartBtn.className = 'btn';
+  cartBtn.style.cssText = 'background: #8e44ad; color: #fff; margin: 0; flex: 1; min-width: 200px;';
+  
+  async function atualizarTextoBotaoCarrinho() {
+    try {
+      const cartCfg = await db.collection("config").doc("cart").get();
+      const statusAtual = cartCfg.exists ? cartCfg.data().enabled !== false : true;
+      cartBtn.textContent = statusAtual ? "🛑 Desativar Carrinho" : "🟢 Ativar Carrinho";
+    } catch (error) {
+      console.error("Erro ao carregar status do carrinho:", error);
+    }
+  }
+  
+  await atualizarTextoBotaoCarrinho();
+  
+  cartBtn.addEventListener("click", async () => {
+    try {
+      const cartCfg = await db.collection("config").doc("cart").get();
+      const statusAtual = cartCfg.exists ? cartCfg.data().enabled !== false : true;
+      const novoStatus = !statusAtual;
+      
+      await db.collection("config").doc("cart").set({ 
+        enabled: novoStatus,
+        atualizadoEm: new Date().toISOString() 
+      }, { merge: true });
+      
+      // Atualizar variável global
+      cartEnabled = novoStatus;
+      
+      // Limpar carrinho se desativando
+      if (!novoStatus) {
+        cart = [];
+        localStorage.removeItem("cart");
+        
+        try {
+          const snapshot = await db.collection("cart").get();
+          if (!snapshot.empty) {
+            const batch = db.batch();
+            snapshot.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+          }
+        } catch (firestoreError) {
+          console.log("Firestore cart já está vazio");
+        }
+      }
+      
+      cartBtn.textContent = novoStatus ? "🛑 Desativar Carrinho" : "🟢 Ativar Carrinho";
+      
+      // 📝 LOG DE ALTERAÇÃO DE STATUS
+      await sistemaLogs.registrar('carrinho_status', {
+        status: novoStatus ? 'ativado' : 'desativado',
+        adminId: auth.currentUser?.uid,
+        motivo: 'acao_administrativa'
+      });
+      
+      const mensagem = novoStatus 
+        ? "✅ Carrinho ATIVADO!\n\nOs clientes podem adicionar produtos ao carrinho normalmente." 
+        : "⏸️ Carrinho DESATIVADO!\n\n• Botões de compra desabilitados\n• Carrinho atual foi esvaziado";
+      
+      alert(mensagem);
+      
+      // Atualizar interface sem fechar o painel
+      if (typeof carregarProdutos === "function") carregarProdutos();
+      if (typeof renderCart === "function") renderCart();
+      if (typeof updateCartCount === "function") updateCartCount();
+      
+    } catch (error) {
+      await sistemaLogs.registrar('carrinho_erro', {
+        erro: error.message,
+        adminId: auth.currentUser?.uid
+      });
+      alert("❌ Erro ao alterar status do carrinho: " + error.message);
+    }
+  });
+  
+  toolbar.appendChild(cartBtn);
+
+  // BOTÃO PAUSAR ESTOQUE
+  const estoqueBtn = document.createElement('button');
+  estoqueBtn.className = 'btn';
+  estoqueBtn.style.cssText = 'background: #f39c12; color: #fff; margin: 0; flex: 1; min-width: 200px;';
+  
+  async function atualizarTextoBotaoEstoque() {
+    try {
+      const estoqueStatus = await db.collection('config').doc('estoque').get();
+      const estoquePausado = estoqueStatus.exists ? estoqueStatus.data().pausado : false;
+      estoqueBtn.textContent = estoquePausado ? '🟢 Reativar Estoque' : '🟡 Pausar Estoque';
+    } catch (error) {
+      console.error("Erro ao carregar status do estoque:", error);
+    }
+  }
+  
+  await atualizarTextoBotaoEstoque();
+  
+  estoqueBtn.addEventListener('click', async () => {
+    try {
+      const estoqueStatus = await db.collection('config').doc('estoque').get();
+      const estoquePausado = estoqueStatus.exists ? estoqueStatus.data().pausado : false;
+      const novoStatus = !estoquePausado;
+      
+      await db.collection('config').doc('estoque').set({ pausado: novoStatus }, { merge: true });
+      
+      if (novoStatus) {
+        cart = [];
+        saveCart();
+        if (typeof renderCart === 'function') renderCart();
+        if (typeof updateCartCount === 'function') updateCartCount();
+        
+        // 📝 LOG DE PAUSA DE ESTOQUE
+        await sistemaLogs.registrar('estoque_status', {
+          status: 'pausado',
+          adminId: auth.currentUser?.uid
+        });
+        
+        alert('⏸️ Estoque pausado!\n\n• Catálogo bloqueado\n• Carrinho esvaziado\n• Pedidos suspensos');
+      } else {
+        // 📝 LOG DE REATIVAÇÃO DE ESTOQUE
+        await sistemaLogs.registrar('estoque_status', {
+          status: 'reativado',
+          adminId: auth.currentUser?.uid
+        });
+        
+        alert('▶️ Estoque reativado!\n\nSistema voltou ao normal.');
+      }
+      
+      estoqueBtn.textContent = novoStatus ? '🟢 Reativar Estoque' : '🟡 Pausar Estoque';
+      
+      // Atualizar catálogo
+      if (typeof carregarProdutos === 'function') {
+        carregarProdutos();
+      }
+      
+    } catch (error) {
+      await sistemaLogs.registrar('estoque_erro', {
+        erro: error.message,
+        adminId: auth.currentUser?.uid
+      });
+      alert('❌ Erro ao alterar status do estoque: ' + error.message);
+    }
+  });
+  
+  toolbar.appendChild(estoqueBtn);
+
+  // Adicionar toolbar antes da lista
+  modalContent.insertBefore(toolbar, container);
+
+  // LISTAR PRODUTOS (SEM VALIDAÇÕES REPETIDAS)
+  let productRows = [];
+  
+  snap.forEach(doc => {
+    const p = doc.data();
+    p._id = doc.id;
+
+    const row = document.createElement('div');
+    row.className = 'admin-row';
+    row.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      padding: 12px;
+      border-bottom: 1px solid #f0f0f0;
+      transition: background 0.2s;
+    `;
+    
+    row.innerHTML = `
+      <img src="${p.img}" 
+           style="
+             width: 50px;
+             height: 50px;
+             object-fit: cover;
+             border-radius: 8px;
+             border: 1px solid #ccc;
+           ">
+      <div class="meta" style="flex: 1;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <strong style="font-size: 16px;">${escapeHtml(p.name)}</strong>
+          <span style="
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: ${p.active ? '#27ae60' : '#e74c3c'};
+            color: white;
+          ">
+            ${p.active ? 'ATIVO' : 'INATIVO'}
+          </span>
+        </div>
+        <div style="font-size: 13px; color: #666; margin-bottom: 4px;">
+          ${escapeHtml(p.desc || 'Sem descrição')}
+        </div>
+        <div style="font-size: 12px; color: #888;">
+          Estoque: <strong>${p.stock || 0}</strong> | 
+          Preço unidade: <strong>${p.priceUnit ? 'R$ ' + p.priceUnit : 'N/A'}</strong> | 
+          Preço kg: <strong>${p.priceKg ? 'R$ ' + p.priceKg : 'N/A'}</strong>
+        </div>
+      </div>
+      <div class="admin-controls" style="display: flex; gap: 8px; flex-shrink: 0;">
+        <button class="btn" id="btnEdit_${p._id}" 
+          style="
+            background: #3498db;
+            color: #fff;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+          ">
+          ✏️ Editar
+        </button>
+        <button class="btn" id="btnToggle_${p._id}"
+          style="
+            background: ${p.active ? '#e74c3c' : '#27ae60'};
+            color: #fff;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+          ">
+          ${p.active ? '🔴 Desativar' : '🟢 Ativar'}
+        </button>
+        <button class="btn" id="btnDelete_${p._id}"
+          style="
+            background: #34495e;
+            color: #fff;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+          ">
+          🗑️ Remover
+        </button>
+      </div>
+    `;
+    
+    container.appendChild(row);
+    productRows.push({ row, data: p });
+
+    // EDITAR PRODUTO (SEM VALIDAÇÃO DE SENHA)
+    row.querySelector(`#btnEdit_${p._id}`).addEventListener('click', async () => {
+      const snapRef = db.collection('produtos').doc(p._id);
+      const snapData = (await snapRef.get()).data();
+      
+      const newName = prompt('Nome do produto:', snapData.name);
+      if (newName === null) return; // Usuário cancelou
+      
+      const newDesc = prompt('Descrição:', snapData.desc || '');
+      const newPriceUnit = prompt('Preço por unidade (deixe vazio se não aplicar):', snapData.priceUnit || '');
+      const newPriceKg = prompt('Preço por kg (deixe vazio se não aplicar):', snapData.priceKg || '');
+      const newOldPrice = prompt('Preço antigo (para promoção):', snapData.oldPrice || '');
+      const newImg = prompt('URL da imagem:', snapData.img || '');
+      const newStock = prompt('Quantidade em estoque:', snapData.stock ?? '');
+      
+      try {
+        await snapRef.update({
+          name: newName || snapData.name,
+          desc: newDesc,
+          priceUnit: newPriceUnit === '' ? null : Number(newPriceUnit),
+          priceKg: newPriceKg === '' ? null : Number(newPriceKg),
+          oldPrice: newOldPrice === '' ? null : Number(newOldPrice),
+          img: newImg || snapData.img,
+          stock: newStock === '' ? 0 : Number(newStock),
+          atualizadoEm: new Date().toISOString()
+        });
+        
+        // 📝 LOG DE EDIÇÃO DE PRODUTO
+        await sistemaLogs.registrar('produto_editado', {
+          produtoId: p._id,
+          produtoNome: newName,
+          estoqueAnterior: snapData.stock || 0,
+          estoqueNovo: newStock === '' ? 0 : Number(newStock),
+          adminId: auth.currentUser?.uid
+        });
+        
+        alert('✅ Produto atualizado com sucesso!');
+        // Recarregar apenas esta linha
+        renderAdminProductsContent();
+        
+      } catch (error) {
+        alert('❌ Erro ao atualizar produto: ' + error.message);
+      }
+    });
+
+    // ATIVAR/DESATIVAR PRODUTO (SEM VALIDAÇÃO)
+    row.querySelector(`#btnToggle_${p._id}`).addEventListener('click', async () => {
+      const snapRef = db.collection('produtos').doc(p._id);
+      const snapData = (await snapRef.get()).data();
+      const newActive = !snapData.active;
+      
+      await snapRef.update({ 
+        active: newActive,
+        atualizadoEm: new Date().toISOString()
+      });
+      
+      // 📝 LOG DE ALTERAÇÃO DE STATUS DO PRODUTO
+      await sistemaLogs.registrar('produto_status', {
+        produtoId: p._id,
+        produtoNome: snapData.name,
+        status: newActive ? 'ativado' : 'desativado',
+        adminId: auth.currentUser?.uid
+      });
+      
+      alert(`✅ Produto ${newActive ? 'ativado' : 'desativado'} com sucesso!`);
+      renderAdminProductsContent();
+    });
+
+    // REMOVER PRODUTO (SEM VALIDAÇÃO)
+    row.querySelector(`#btnDelete_${p._id}`).addEventListener('click', async () => {
+      if (!confirm('⚠️ ATENÇÃO!\n\nTem certeza que deseja EXCLUIR permanentemente este produto?\n\nEsta ação não pode ser desfeita.')) return;
+      
+      await db.collection('produtos').doc(p._id).delete();
+      
+      // 📝 LOG DE EXCLUSÃO DE PRODUTO
+      await sistemaLogs.registrar('produto_excluido', {
+        produtoId: p._id,
+        produtoNome: p.name,
+        adminId: auth.currentUser?.uid
+      });
+      
+      alert('✅ Produto removido com sucesso!');
+      renderAdminProductsContent();
+    });
+  });
+
+  // FILTRAR PRODUTOS NA PESQUISA
+  searchBar.addEventListener("input", () => {
+    const text = searchBar.value.toLowerCase();
+    productRows.forEach(prod => {
+      const name = prod.data.name.toLowerCase();
+      const desc = (prod.data.desc || "").toLowerCase();
+      prod.row.style.display = name.includes(text) || desc.includes(text) ? "flex" : "none";
+    });
+  });
+
+  // =========================
+  // ADICIONAR MODAL AO DOM (O BOTÃO JÁ ESTÁ CONFIGURADO)
+  // =========================
+  
+  // Primeiro adicionamos o modal ao DOM
+  modalDiv.appendChild(modalContent);
+  document.body.appendChild(modalDiv);
+  
+  // FECHAR MODAL AO CLICAR FORA
+  modalDiv.addEventListener('click', (e) => {
+    if (e.target === modalDiv) {
+      // Mesmo comportamento do botão fechar
+      modalDiv.remove();
+      if (adminSessaoTimeout) {
+        clearTimeout(adminSessaoTimeout);
+        adminSessaoTimeout = null;
+      }
+      if (typeof carregarProdutos === 'function') {
+        setTimeout(() => carregarProdutos(), 300);
+      }
+    }
+  });
+}
+
+// =========================
+// EVENTOS
+// =========================
+document.getElementById('adminLink').addEventListener('click', e=>{ 
+  e.preventDefault(); 
+  renderAdminProducts(); 
+});
+
+document.getElementById('btnOpenCart').addEventListener('click', e=>{ 
+  if (!cartEnabled) {
+    alert("⏸️ Carrinho está desativado no momento. Ative-o no painel admin para comprar.");
+    return;
+  }
+  document.getElementById('cartCard').style.display='block'; 
+  document.getElementById('catalogCard').style.display='none'; 
+  renderCart(); 
+});
+
+document.getElementById('btnCopyPayload').addEventListener('click', async () => {
+  try {
+    const pixEl = document.getElementById('pixPayload');
+    const pixText = pixEl.value;
+    
+    if (!pixText || pixText.includes('⚠️') || pixText.includes('Adicione produtos')) {
+      alert('Não há código PIX válido para copiar!');
+      return;
+    }
+    
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(pixText);
+    } else {
+      pixEl.select();
+      pixEl.setSelectionRange(0, 99999);
+      document.execCommand('copy');
+    }
+    
+    const btn = document.getElementById('btnCopyPayload');
+    const originalText = btn.textContent;
+    btn.textContent = '✅ Copiado!';
+    btn.style.background = '#27ae60';
+    
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = '';
+    }, 2000);
+    
+  } catch (error) {
+    console.error('Erro ao copiar PIX:', error);
+    alert('❌ Erro ao copiar código PIX. Tente selecionar e copiar manualmente.');
+  }
+});
+
+document.getElementById('btnUseLocation')?.addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    alert("Seu navegador não suporta geolocalização.");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const link = `https://www.google.com/maps?q=${lat},${lng}`;
+      document.getElementById('clientLocation').value = link;
+      alert("Localização capturada com sucesso!");
+    },
+    (err) => {
+      alert("Não foi possível obter a localização. Ative o GPS e tente novamente.");
+    }
+  );
+});
+
+
+// =========================
+// INICIALIZAÇÃO
+// =========================
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    console.log('✅ Sistema inicializando...');
+    
+    // Fazer login automático
+    try {
+      await auth.signInAnonymously();
+      console.log('✅ Usuário autenticado anonimamente');
+    } catch (authError) {
+      console.log('⚠️ Autenticação não necessária para leitura');
+    }
+    
+    // Inicializar PIX COMPLETO
+    await inicializarPix();
+    
+    // Configurar listener do status do carrinho
+    db.collection("config").doc("cart").onSnapshot(() => {
+      atualizarStatusCarrinhoUnificado();
+    });
+    
+    // Carregar status inicial
+    await atualizarStatusCarrinhoUnificado();
+    
+    // Carregar produtos
+    await carregarProdutos();
+    
+    // Adicionar evento de pesquisa
+    document.getElementById('searchInput').addEventListener('input', () => {
+      carregarProdutos();
+    });
+    
+    console.log('✅ Sistema inicializado com sucesso!');
+    
+  } catch (error) {
+    console.error('❌ Erro na inicialização:', error);
+    alert('Erro ao carregar o sistema. Recarregue a página.');
+  }
+});
+
+// 🔧 FERRAMENTA DE EMERGÊNCIA AVANÇADA - VERSÃO COM MODAL HTML (CORRIGIDA)
+window.reporEstoqueManual = async function() {
+  try {
+    console.log('🔍 Buscando produtos para reposição...');
+    
+    // Buscar produtos
+    const querySnapshot = await db.collection('produtos').orderBy('name').get();
+    const produtos = [];
+    
+    // Usar contador MANUAL para garantir números corretos
+    let contador = 0;
+    
+    querySnapshot.forEach((doc) => {
+      contador++; // Incrementar primeiro
+      const dados = doc.data();
+      produtos.push({
+        id: doc.id,
+        numero: contador, // Usar contador manual
+        nome: dados.name || 'Produto sem nome',
+        estoque: dados.stock || 0,
+        precoUnidade: dados.priceUnit || 0,
+        precoKg: dados.priceKg || 0
+      });
+    });
+    
+    console.log(`✅ ${produtos.length} produtos carregados`);
+    console.log('📊 Primeiros 5 produtos:', produtos.slice(0, 5));
+    
+    // Verificar se os números estão corretos
+    produtos.forEach((prod, idx) => {
+      console.log(`Produto ${idx + 1}: Número no array: ${prod.numero}, Nome: ${prod.nome}`);
+    });
+    
+    // Criar modal HTML
+    const modalHTML = `
+      <div id="estoqueModal" style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        font-family: Arial, sans-serif;
+      ">
+        <div style="
+          background: white;
+          border-radius: 10px;
+          width: 90%;
+          max-width: 800px;
+          max-height: 80vh;
+          overflow: hidden;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        ">
+          <div style="
+            background: linear-gradient(90deg, #16a085, #1abc9c);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          ">
+            <h3 style="margin: 0; font-size: 18px;">
+              📦 REPOSIÇÃO DE ESTOQUE - ${produtos.length} PRODUTOS
+            </h3>
+            <button id="closeModalBtn" style="
+              background: #e74c3c;
+              color: white;
+              border: none;
+              padding: 5px 10px;
+              border-radius: 4px;
+              cursor: pointer;
+              font-weight: bold;
+            ">
+              X FECHAR
+            </button>
+          </div>
+          
+          <div style="padding: 15px; max-height: 60vh; overflow-y: auto;">
+            <div style="
+              display: grid;
+              grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+              gap: 10px;
+              margin-bottom: 15px;
+            " id="produtosGrid">
+              ${produtos.map(prod => {
+                // Calcular preço para mostrar
+                let precoMostrar = 0;
+                let tipoPreco = '';
+                
+                if (prod.precoUnidade > 0) {
+                  precoMostrar = prod.precoUnidade;
+                  tipoPreco = '(unidade)';
+                } else if (prod.precoKg > 0) {
+                  precoMostrar = prod.precoKg;
+                  tipoPreco = '(kg)';
+                }
+                
+                return `
+                <div style="
+                  border: 1px solid #ddd;
+                  border-radius: 6px;
+                  padding: 10px;
+                  background: #f9f9f9;
+                  cursor: pointer;
+                  transition: all 0.2s;
+                " 
+                class="produto-item"
+                data-numero="${prod.numero}"
+                onclick="selecionarProdutoEstoqueModal(${prod.numero})">
+                  <div style="font-weight: bold; color: #2c3e50; margin-bottom: 5px;">
+                    [${prod.numero}] ${prod.nome}
+                  </div>
+                  <div style="font-size: 13px; color: #555;">
+                    📦 Estoque: <strong>${prod.estoque}</strong>
+                  </div>
+                  <div style="font-size: 13px; color: ${precoMostrar > 0 ? '#27ae60' : '#e74c3c'};">
+                    💰 Preço: R$ ${precoMostrar.toFixed(2)}
+                    ${tipoPreco ? ' ' + tipoPreco : ''}
+                  </div>
+                </div>
+              `}).join('')}
+            </div>
+            
+            <div style="
+              border-top: 2px solid #eee;
+              padding-top: 15px;
+              text-align: center;
+            ">
+              <div style="margin-bottom: 10px; font-weight: bold; color: #7f8c8d;">
+                OU DIGITE O NÚMERO DO PRODUTO:
+              </div>
+              <div style="display: flex; gap: 10px; justify-content: center;">
+                <input type="number" 
+                  id="numeroProdutoInput"
+                  placeholder="Número (1-${produtos.length})"
+                  min="1"
+                  max="${produtos.length}"
+                  style="
+                    padding: 10px;
+                    border: 2px solid #3498db;
+                    border-radius: 6px;
+                    width: 120px;
+                    text-align: center;
+                    font-size: 16px;
+                  ">
+                <button id="selecionarPorNumeroBtn" style="
+                  background: #3498db;
+                  color: white;
+                  border: none;
+                  padding: 10px 20px;
+                  border-radius: 6px;
+                  cursor: pointer;
+                  font-weight: bold;
+                  font-size: 14px;
+                ">
+                  SELECIONAR
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div style="
+            background: #f8f9fa;
+            padding: 12px 20px;
+            text-align: center;
+            border-top: 1px solid #eee;
+            color: #666;
+            font-size: 13px;
+          ">
+            <strong>${produtos.length}</strong> produtos disponíveis • Clique em um produto ou digite o número
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Remover modal anterior se existir
+    const modalAntigo = document.getElementById('estoqueModal');
+    if (modalAntigo) modalAntigo.remove();
+    
+    // Limpar função anterior
+    if (window.selecionarProdutoEstoqueModal) {
+      delete window.selecionarProdutoEstoqueModal;
+    }
+    
+    // Adicionar modal ao corpo
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHTML;
+    document.body.appendChild(modalContainer);
+    
+    // Função para selecionar produto
+    window.selecionarProdutoEstoqueModal = async function(numeroProduto) {
+      console.log('🎯 Produto selecionado:', numeroProduto);
+      
+      const produto = produtos.find(p => p.numero === numeroProduto);
+      
+      if (!produto) {
+        alert('❌ Produto não encontrado!');
+        return;
+      }
+      
+      // Remover modal
+      const modal = document.getElementById('estoqueModal');
+      if (modal) modal.remove();
+      
+      // Pedir nova quantidade
+      const novaQtd = prompt(
+        `📊 ATUALIZAR ESTOQUE\n\n` +
+        `Produto: ${produto.nome}\n` +
+        `Estoque atual: ${produto.estoque}\n\n` +
+        `Digite a nova quantidade:`
+      );
+      
+      if (novaQtd === null) {
+        console.log('❌ Operação cancelada pelo usuário');
+        return;
+      }
+      
+      const quantidade = parseInt(novaQtd);
+      
+      if (isNaN(quantidade) || quantidade < 0) {
+        alert('❌ Quantidade inválida! Digite um número válido (ex: 0, 10, 25).');
+        return;
+      }
+      
+      // Confirmar
+      const diferenca = quantidade - produto.estoque;
+      const confirmar = confirm(
+        `⚠️ CONFIRMAR ATUALIZAÇÃO?\n\n` +
+        `Produto: ${produto.nome}\n` +
+        `Estoque atual: ${produto.estoque}\n` +
+        `Novo estoque: ${quantidade}\n` +
+        `Diferença: ${diferenca >= 0 ? '+' : ''}${diferenca} unidades`
+      );
+      
+      if (!confirmar) {
+        alert('❌ Atualização cancelada.');
+        return;
+      }
+      
+      // Mostrar loading
+      const loadingMsg = `🔄 Atualizando ${produto.nome}...`;
+      const loadingDiv = document.createElement('div');
+      loadingDiv.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: #2c3e50;
+        color: white;
+        padding: 20px 30px;
+        border-radius: 10px;
+        z-index: 10000;
+        font-weight: bold;
+      `;
+      loadingDiv.textContent = loadingMsg;
+      document.body.appendChild(loadingDiv);
+      
+      try {
+        // Atualizar no Firebase
+        await db.collection('produtos').doc(produto.id).update({
+          stock: quantidade,
+          atualizadoEm: new Date().toISOString()
+        });
+        
+        // 📝 LOG DE ALTERAÇÃO DE ESTOQUE
+        await sistemaLogs.registrar('estoque_alterado', {
+          produtoId: produto.id,
+          produtoNome: produto.nome,
+          estoqueAnterior: produto.estoque,
+          estoqueNovo: quantidade,
+          diferenca: diferenca,
+          adminId: auth.currentUser?.uid
+        });
+        
+        // Remover loading
+        loadingDiv.remove();
+        
+        // Mostrar sucesso
+        alert(`✅ ESTOQUE ATUALIZADO!\n\n` +
+              `📦 ${produto.nome}\n` +
+              `🔄 ${produto.estoque} → ${quantidade}\n` +
+              `📈 ${diferenca >= 0 ? '+' : ''}${diferenca} unidades`);
+        
+        // Recarregar produtos
+        if (typeof carregarProdutos === 'function') {
+          setTimeout(() => {
+            carregarProdutos();
+            console.log('🔄 Catálogo recarregado');
+          }, 500);
+        }
+        
+      } catch (error) {
+        loadingDiv.remove();
+        console.error('❌ Erro ao atualizar:', error);
+        await sistemaLogs.registrar('estoque_erro', {
+          erro: error.message,
+          produtoId: produto.id,
+          adminId: auth.currentUser?.uid
+        });
+        alert(`❌ Erro ao atualizar estoque:\n\n${error.message}`);
+      }
+    };
+    
+    // Configurar eventos
+    document.getElementById('closeModalBtn').addEventListener('click', function() {
+      const modal = document.getElementById('estoqueModal');
+      if (modal) modal.remove();
+    });
+    
+    document.getElementById('selecionarPorNumeroBtn').addEventListener('click', function() {
+      const input = document.getElementById('numeroProdutoInput');
+      const numero = parseInt(input.value);
+      
+      if (isNaN(numero) || numero < 1 || numero > produtos.length) {
+        alert(`❌ Número inválido!\n\nDigite um número entre 1 e ${produtos.length}`);
+        return;
+      }
+      
+      window.selecionarProdutoEstoqueModal(numero);
+    });
+    
+    document.getElementById('numeroProdutoInput').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        document.getElementById('selecionarPorNumeroBtn').click();
+      }
+    });
+    
+    // Fechar modal ao clicar fora
+    document.getElementById('estoqueModal').addEventListener('click', function(e) {
+      if (e.target.id === 'estoqueModal') {
+        this.remove();
+      }
+    });
+    
+    // Adicionar efeito hover aos cards
+    setTimeout(() => {
+      const cards = document.querySelectorAll('.produto-item');
+      cards.forEach(card => {
+        card.addEventListener('mouseenter', function() {
+          this.style.transform = 'translateY(-2px)';
+          this.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+          this.style.borderColor = '#3498db';
+        });
+        
+        card.addEventListener('mouseleave', function() {
+          this.style.transform = 'translateY(0)';
+          this.style.boxShadow = 'none';
+          this.style.borderColor = '#ddd';
+        });
+      });
+    }, 100);
+    
+  } catch (error) {
+    console.error('❌ Erro na função reporEstoqueManual:', error);
+    alert('❌ Erro ao carregar produtos: ' + error.message);
+  }
+};
+// =========================
+// FUNÇÃO PARA CORRIGIR PIX EXISTENTE (executar no console F12)
+// =========================
+window.corrigirPixNoFirebase = async function() {
+  try {
+    const pixSnap = await db.collection('config').doc('pix').get();
+    
+    if (pixSnap.exists) {
+      const dados = pixSnap.data();
+      
+      // Se já tem chave mas não tem nome, adiciona
+      if (dados.chave && !dados.nomeTitular) {
+        const nome = prompt(
+          'Digite o nome do titular da chave PIX:\n\n' +
+          'Chave atual: ' + dados.chave + '\n\n' +
+          'Este nome aparecerá no QR Code PIX:',
+          'NOME DO TITULAR'
+        );
+        
+        const cidade = prompt(
+          'Digite a cidade do titular:',
+          'CIDADE'
+        );
+        
+        if (nome && cidade) {
+          await db.collection('config').doc('pix').update({
+            nomeTitular: nome.trim(),
+            cidadeTitular: cidade.trim(),
+            atualizadoEm: new Date().toISOString()
+          });
+          
+          alert('✅ PIX corrigido no Firebase!\n\nNome: ' + nome + '\nCidade: ' + cidade);
+          
+          // Recarregar página para aplicar
+          location.reload();
+        }
+      } else {
+        alert('✅ PIX já está configurado corretamente.');
+      }
+    } else {
+      alert('❌ Nenhuma configuração PIX encontrada.');
+    }
+  } catch (error) {
+    console.error('Erro:', error);
+    alert('❌ Erro: ' + error.message);
+  }
+};
+
+// =========================
+// MODO TÉCNICO - FUNÇÃO COM SENHA EXCLUSIVA (MODIFICADA)
+// =========================
+window.ativarModoTecnico = async function() {
+    console.log('🔧 Solicitando acesso ao modo técnico...');
+    
+    // Função para criar modal de senha
+    function criarModalSenhaTecnico() {
+        return new Promise((resolve) => {
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.8);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 999999;
+                font-family: Arial, sans-serif;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: #2c3e50; color: white; padding: 25px; border-radius: 10px; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                    <h3 style="color: #f39c12; margin-top: 0; text-align: center;">🔧 ACESSO MODO TÉCNICO</h3>
+                    
+                    <p style="text-align: center; color: #bdc3c7; margin-bottom: 20px;">
+                        Digite a senha do modo técnico (senha exclusiva):
+                    </p>
+                    
+                    <input type="password" 
+                           id="senhaModoTecnico" 
+                           placeholder="Digite a senha do técnico"
+                           style="
+                               width: 100%;
+                               padding: 12px;
+                               border-radius: 6px;
+                               border: 2px solid #f39c12;
+                               background: #34495e;
+                               color: white;
+                               font-size: 16px;
+                               margin-bottom: 20px;
+                               box-sizing: border-box;
+                           "
+                           autofocus>
+                    
+                    <div style="display: flex; gap: 10px;">
+                        <button id="btnCancelarTecnico"
+                                style="
+                                    background: #7f8c8d;
+                                    color: white;
+                                    border: none;
+                                    padding: 12px;
+                                    border-radius: 6px;
+                                    cursor: pointer;
+                                    flex: 1;
+                                    font-weight: bold;
+                                ">
+                            ❌ Cancelar
+                        </button>
+                        
+                        <button id="btnConfirmarTecnico"
+                                style="
+                                    background: #2ecc71;
+                                    color: white;
+                                    border: none;
+                                    padding: 12px;
+                                    border-radius: 6px;
+                                    cursor: pointer;
+                                    flex: 1;
+                                    font-weight: bold;
+                                ">
+                            ✅ Acessar
+                        </button>
+                    </div>
+                    
+                    <div style="margin-top: 15px; font-size: 12px; color: #95a5a6; text-align: center;">
+                        Senha exclusiva para acesso técnico (diferente do admin)
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            const senhaInput = document.getElementById('senhaModoTecnico');
+            const btnConfirmar = document.getElementById('btnConfirmarTecnico');
+            const btnCancelar = document.getElementById('btnCancelarTecnico');
+            
+            senhaInput.focus();
+            
+            const removerModal = () => {
+                if (document.body.contains(modal)) {
+                    document.body.removeChild(modal);
+                }
+            };
+            
+            btnConfirmar.onclick = async () => {
+                const senha = senhaInput.value;
+                if (!senha) {
+                    alert('❌ Digite a senha do técnico!');
+                    return;
+                }
+                
+                // Verificar senha DO TÉCNICO (exclusiva)
+                const senhaHash = await hashSenha(senha);
+                const senhaValida = await verificarSenhaTecnico(senhaHash); // <-- MUDANÇA AQUI
+                
+                if (!senhaValida) {
+                    // Log de tentativa falha
+                    await sistemaLogs.registrar('acesso_tecnico_falha', {
+                        motivo: 'senha_incorreta',
+                        ip: await getUserIP()
+                    });
+                    
+                    alert('❌ Senha do modo técnico incorreta!');
+                    return;
+                }
+                
+                removerModal();
+                
+                // Log de acesso bem-sucedido
+                await sistemaLogs.registrar('acesso_tecnico_sucesso', {
+                    usuario: auth.currentUser?.uid,
+                    ip: await getUserIP()
+                });
+                
+                resolve(true); // Acesso permitido
+            };
+            
+            btnCancelar.onclick = () => {
+                removerModal();
+                resolve(false); // Acesso cancelado
+            };
+            
+            // Enter para confirmar
+            senhaInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    btnConfirmar.click();
+                }
+            });
+            
+            // ESC para cancelar
+            modal.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    btnCancelar.click();
+                }
+            });
+        });
+    }
+    
+    // Solicitar senha do técnico (não do admin)
+    const acessoPermitido = await criarModalSenhaTecnico();
+    
+    if (acessoPermitido) {
+        console.log('✅ Acesso ao modo técnico autorizado!');
+        adminAutenticado = true; // Permite acesso às funções protegidas
+        criarPainelTecnico();
+    } else {
+        console.log('❌ Acesso ao modo técnico negado ou cancelado.');
+    }
+};
+
+// =========================
+// FUNÇÃO SEPARADA PARA CRIAR O PAINEL TÉCNICO (MODIFICADA)
+// =========================
+function criarPainelTecnico() {
+    console.log('🔧 Criando painel técnico...');
+    
+    // Remover painel anterior se existir
+    const painelAnterior = document.getElementById('painelTecnico');
+    if (painelAnterior) {
+        painelAnterior.remove();
+    }
+    
+    // Criar painel técnico flutuante
+    const painelTecnico = document.createElement('div');
+    painelTecnico.id = 'painelTecnico';
+    painelTecnico.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        background: #2c3e50;
+        color: white;
+        padding: 15px;
+        border-radius: 10px;
+        z-index: 999998;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        width: 320px;
+        max-height: 80vh;
+        overflow-y: auto;
+        font-family: Arial, sans-serif;
+        border: 2px solid #f39c12;
+    `;
+    
+    painelTecnico.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #34495e; padding-bottom: 10px;">
+            <h3 style="margin: 0; color: #f39c12; font-size: 16px;">🔧 MODO TÉCNICO</h3>
+            <button id="fecharPainelTecnico" style="background: #e74c3c; color: white; border: none; border-radius: 5px; padding: 5px 10px; cursor: pointer; font-size: 12px;">
+                ✕ FECHAR
+            </button>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #2ecc71;">📊 STATUS DO SISTEMA:</strong>
+            <div style="font-size: 12px; margin-top: 8px; background: #34495e; padding: 8px; border-radius: 5px;">
+                <div>UID: ${auth.currentUser?.uid || 'Não autenticado'}</div>
+                <div>Email: ${auth.currentUser?.email || 'Anônimo'}</div>
+                <div>PIX: ${rawPixPhone ? '***' + rawPixPhone.slice(-4) : 'Não configurado'}</div>
+                <div>Carrinho: ${cartEnabled ? '✅ Ativo' : '⏸️ Pausado'}</div>
+                <div>Itens no carrinho: ${cart.length}</div>
+                <div>Modo Técnico: ✅ Ativo</div>
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #f39c12;">⚙️ FERRAMENTAS RÁPIDAS:</strong>
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+                <button onclick="testarPIX()" style="background: #9b59b6; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-size: 13px; text-align: left;">
+                    🔍 Testar PIX
+                </button>
+                <button onclick="verLogs()" style="background: #3498db; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-size: 13px; text-align: left;">
+                    📋 Ver Logs
+                </button>
+                <button onclick="limparCacheLocal()" style="background: #e74c3c; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-size: 13px; text-align: left;">
+                    🗑️ Limpar Cache
+                </button>
+                <button onclick="recarregarProdutos()" style="background: #2ecc71; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-size: 13px; text-align: left;">
+                    🔄 Recarregar Produtos
+                </button>
+                <button onclick="verSenhasSistema()" style="background: #8e44ad; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-size: 13px; text-align: left;">
+                    🔐 Ver Senhas
+                </button>
+                <button onclick="trocarSenhaTecnico()" style="background: #f39c12; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-size: 13px; text-align: left;">
+                    🔧 Alterar Senha Técnico
+                </button>
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #1abc9c;">🔍 DIAGNÓSTICO:</strong>
+            <div style="font-size: 12px; margin-top: 8px; background: #34495e; padding: 8px; border-radius: 5px;">
+                <button onclick="executarDiagnostico()" style="width: 100%; background: #16a085; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; margin-bottom: 8px;">
+                    🩺 Diagnóstico Completo
+                </button>
+                <div id="resultadoDiagnostico" style="font-size: 11px; color: #bdc3c7; max-height: 100px; overflow-y: auto; margin-top: 8px;"></div>
+            </div>
+        </div>
+        
+        <div>
+            <strong style="color: #e74c3c;">⚠️ EMERGÊNCIA:</strong>
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+                <button onclick="window.forceCloseButton()" style="background: #c0392b; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-size: 13px; text-align: left;">
+                    💣 Fechar Tudo
+                </button>
+                <button onclick="resetarSistema()" style="background: #d35400; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-size: 13px; text-align: left;">
+                    ♻️ Resetar Sistema
+                </button>
+                <button onclick="resetarSenhasPadrao()" style="background: #d35400; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-size: 13px; text-align: left;">
+                    🔄 Redefinir Senhas
+                </button>
+            </div>
+        </div>
+        
+        <div style="margin-top: 15px; font-size: 10px; color: #95a5a6; text-align: center; border-top: 1px solid #34495e; padding-top: 10px;">
+            Modo Técnico - ${new Date().toLocaleTimeString('pt-BR')}
+        </div>
+    `;
+    
+    document.body.appendChild(painelTecnico);
+    
+    // Configurar botão fechar
+    document.getElementById('fecharPainelTecnico').onclick = function() {
+        painelTecnico.remove();
+    };
+    
+    // Fechar com ESC
+    const fecharComESC = function(e) {
+        if (e.key === 'Escape' && document.getElementById('painelTecnico')) {
+            document.getElementById('painelTecnico').remove();
+            document.removeEventListener('keydown', fecharComESC);
+        }
+    };
+    document.addEventListener('keydown', fecharComESC);
+    
+    console.log('✅ Painel técnico criado!');
+}
+
+// =========================
+// FUNÇÃO PARA ALTERAR SENHA DO TÉCNICO - NOVA
+// =========================
+window.trocarSenhaTecnico = async function() {
+  console.log('🔧 Alterando senha do modo técnico...');
+  
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000001;
+  `;
+  
+  modal.innerHTML = `
+    <div style="background: #2c3e50; color: white; padding: 25px; border-radius: 10px; width: 90%; max-width: 400px;">
+      <h3 style="color: #f39c12; margin-top: 0; text-align: center;">🔧 ALTERAR SENHA DO MODO TÉCNICO</h3>
+      
+      <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 5px;">Senha Atual do Técnico:</label>
+        <input type="password" id="senhaAtualTecnico" 
+              style="width: 100%; padding: 10px; border-radius: 5px; border: 2px solid #f39c12; background: #34495e; color: white;"
+              placeholder="Digite a senha atual">
+      </div>
+      
+      <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 5px;">Nova Senha:</label>
+        <input type="password" id="novaSenhaTecnico" 
+              style="width: 100%; padding: 10px; border-radius: 5px; border: 2px solid #2ecc71; background: #34495e; color: white;"
+              placeholder="Digite a nova senha">
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 5px;">Confirmar Nova Senha:</label>
+        <input type="password" id="confirmarSenhaTecnico" 
+              style="width: 100%; padding: 10px; border-radius: 5px; border: 2px solid #2ecc71; background: #34495e; color: white;"
+              placeholder="Digite novamente">
+      </div>
+      
+      <div style="background: #34495e; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 12px;">
+        <strong>📝 Importante:</strong><br>
+        • Esta senha é usada APENAS para o modo técnico<br>
+        • Não afeta a senha do administrador<br>
+        • Recomendado: senha diferente da admin
+      </div>
+      
+      <div style="display: flex; gap: 10px;">
+        <button id="btnCancelarTec" 
+                style="background: #7f8c8d; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; flex: 1;">
+          ❌ Cancelar
+        </button>
+        <button id="btnConfirmarTec" 
+                style="background: #2ecc71; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; flex: 1;">
+          ✅ Confirmar
+        </button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Fechar modal ao clicar fora
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+  
+  document.getElementById('btnCancelarTec').onclick = function() {
+    modal.remove();
+  };
+  
+  document.getElementById('btnConfirmarTec').onclick = async function() {
+    const senhaAtual = document.getElementById('senhaAtualTecnico').value;
+    const novaSenha = document.getElementById('novaSenhaTecnico').value;
+    const confirmarSenha = document.getElementById('confirmarSenhaTecnico').value;
+    
+    // Validações
+    if (!senhaAtual || !novaSenha || !confirmarSenha) {
+      alert('❌ Todos os campos são obrigatórios!');
+      return;
+    }
+    
+    if (novaSenha !== confirmarSenha) {
+      alert('❌ As novas senhas não coincidem!');
+      return;
+    }
+    
+    if (novaSenha.length < 4) {
+      alert('❌ A senha deve ter pelo menos 4 caracteres!');
+      return;
+    }
+    
+    try {
+      // Verificar senha atual
+      const senhaAtualHash = await hashSenha(senhaAtual);
+      const senhaValida = await verificarSenhaTecnico(senhaAtualHash);
+      
+      if (!senhaValida) {
+        alert('❌ Senha atual incorreta!');
+        return;
+      }
+      
+      // Calcular hash da nova senha
+      const novaSenhaHash = await hashSenha(novaSenha);
+      
+      // Atualizar no Firebase
+      await db.collection('config').doc('tecnico_senha').set({
+        senha: novaSenhaHash,
+        atualizadoEm: new Date().toISOString(),
+        atualizadoPor: auth.currentUser?.uid,
+        ultimaAlteracao: new Date().toISOString()
+      }, { merge: true });
+      
+      // Log da alteração
+      await sistemaLogs.registrar('senha_tecnico_alterada', {
+        alteradoPor: auth.currentUser?.uid,
+        ip: await getUserIP()
+      });
+      
+      // Fechar modal
+      modal.remove();
+      
+      // Mostrar sucesso
+      alert(`✅ SENHA DO TÉCNICO ALTERADA!\n\nNova senha configurada com sucesso.\n\nAnote em local seguro!`);
+      
+      console.log('✅ Senha do técnico alterada com sucesso!');
+      
+    } catch (error) {
+      console.error('❌ Erro ao alterar senha:', error);
+      alert('❌ Erro: ' + error.message);
+    }
+  };
+  
+  // Focar no primeiro campo
+  document.getElementById('senhaAtualTecnico').focus();
+  
+  // Enter para confirmar
+  modal.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      document.getElementById('btnConfirmarTec').click();
+    }
+  });
+};
+
+// =========================
+// PROTEGER FUNÇÕES TÉCNICAS
+// =========================
+const funcoesTecnicasOriginais = {
+    testarPIX: window.testarPIX,
+    verLogs: window.verLogs,
+    executarDiagnostico: window.executarDiagnostico,
+    verSenhasSistema: window.verSenhasSistema,
+    resetarSenhasPadrao: window.resetarSenhasPadrao
+};
+
+// Sobrescrever funções para exigir autenticação
+window.testarPIX = async function() {
+    if (!adminAutenticado) {
+        console.log('⚠️ Acesso não autorizado. Use ativarModoTecnico() primeiro.');
+        alert('❌ Acesso não autorizado!\n\nUse ativarModoTecnico() e autentique-se primeiro.');
+        return;
+    }
+    return funcoesTecnicasOriginais.testarPIX();
+};
+
+window.verLogs = async function() {
+    if (!adminAutenticado) {
+        alert('❌ Acesso não autorizado!\n\nAutentique-se no modo técnico primeiro.');
+        return;
+    }
+    return funcoesTecnicasOriginais.verLogs();
+};
+
+window.executarDiagnostico = async function() {
+    if (!adminAutenticado) {
+        alert('❌ Acesso não autorizado!\n\nAutentique-se no modo técnico primeiro.');
+        return;
+    }
+    return funcoesTecnicasOriginais.executarDiagnostico();
+};
+
+window.verSenhasSistema = async function() {
+    if (!adminAutenticado) {
+        alert('❌ Acesso restrito!\n\nSomente usuários autenticados podem ver senhas.');
+        return;
+    }
+    return funcoesTecnicasOriginais.verSenhasSistema();
+};
+
+window.resetarSenhasPadrao = async function() {
+    if (!adminAutenticado) {
+        alert('❌ Operação não permitida!\n\nAutentique-se primeiro.');
+        return;
+    }
+    return funcoesTecnicasOriginais.resetarSenhasPadrao();
+};
+
+// ============================================
+// GARANTIA EXTRA: SISTEMA QUE MONITORA O BOTÃO
+// ============================================
+
+// Observador para garantir que o botão sempre funcione
+const observer = new MutationObserver((mutations) => {
+  mutations.forEach((mutation) => {
+    if (mutation.type === 'childList') {
+      const closeBtn = document.getElementById('adminCloseBtn');
+      if (closeBtn && !closeBtn.hasAttribute('data-ja-configurado')) {
+        console.log('🔍 Botão detectado - aplicando garantia...');
+        
+        // Marcar como configurado
+        closeBtn.setAttribute('data-ja-configurado', 'true');
+        
+        // Configurar evento
+        closeBtn.onclick = function(event) {
+          if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+          }
+          
+          console.log('✅ Botão (garantia) clicado - Fechando...');
+          
+          // Remover modal
+          const modal = document.querySelector('.modal-backdrop');
+          if (modal) {
+            modal.remove();
+          }
+          
+          // Limpar timeout
+          if (window.adminSessaoTimeout) {
+            clearTimeout(window.adminSessaoTimeout);
+            window.adminSessaoTimeout = null;
+          }
+          
+          // Recarregar produtos
+          if (typeof window.carregarProdutos === 'function') {
+            setTimeout(() => {
+              window.carregarProdutos();
+            }, 300);
+          }
+          
+          return false;
+        };
+        
+        // Aplicar estilo verde
+        closeBtn.style.cssText = `
+          background: #2ecc71 !important;
+          color: white !important;
+          border: none !important;
+          padding: 10px 20px !important;
+          border-radius: 8px !important;
+          cursor: pointer !important;
+          font-weight: bold !important;
+          font-size: 15px !important;
+          box-shadow: 0 4px 15px rgba(46, 204, 113, 0.7) !important;
+          position: relative !important;
+          z-index: 9999 !important;
+          min-width: 140px !important;
+          text-align: center !important;
+        `;
+      }
+    }
+  });
+});
+
+// Iniciar observação
+observer.observe(document.body, {
+  childList: true,
+  subtree: true
+});
+
+console.log('🛡️ Sistema de garantia carregado! O botão agora funcionará sempre.');
+
+// ============================================
+// SOLUÇÃO NUCLEAR DEFINITIVA - REMOVA TUDO E COLE ISSO
+// ============================================
+
+// 1. REMOVER QUALQUER SISTEMA ANTIGO DO BOTÃO
+document.querySelectorAll('.modal-backdrop').forEach(m => m.remove());
+
+// 2. SOBRESCREVER COMPLETAMENTE A FUNÇÃO QUE CRIA O PAINEL
+const originalRenderAdminProductsContent = window.renderAdminProductsContent;
+
+window.renderAdminProductsContent = async function() {
+    console.log('🚀 Criando painel com solução nuclear...');
+    
+    // Executar função original mas capturar o resultado
+    if (originalRenderAdminProductsContent) {
+        await originalRenderAdminProductsContent.apply(this, arguments);
+    }
+    
+    // 3. AGORA CONFIGURAR O BOTÃO COM PRIORIDADE MÁXIMA
+    setTimeout(() => {
+        console.log('🎯 Configurando botão FECHAR (solução nuclear)...');
+        
+        // Encontrar TODOS os botões e substituir
+        document.querySelectorAll('#adminCloseBtn').forEach(oldBtn => {
+            // Criar NOVO botão do ZERO
+            const novoBotao = document.createElement('button');
+            novoBotao.id = 'adminCloseBtn';
+            novoBotao.textContent = '🚀 FECHAR ADM';
+            novoBotao.title = 'Clique 1 vez para fechar';
+            
+            // COMPORTAMENTO ABSOLUTO (nada pode impedir)
+            novoBotao.addEventListener('click', function handler(e) {
+                console.log('💥 CLIQUE NUCLEAR ATIVADO!');
+                
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                }
+                
+                // Remover este handler depois de executar (evitar duplicação)
+                this.removeEventListener('click', handler);
+                
+                // FECHAR TUDO IMEDIATAMENTE
+                document.querySelectorAll('.modal-backdrop, .modal, [class*="backdrop"]').forEach(el => {
+                    console.log('🗑️ Removendo:', el.className);
+                    el.remove();
+                });
+                
+                // Resetar body
+                document.body.style.overflow = 'auto';
+                document.body.classList.remove('modal-open');
+                
+                // Limpar timeout admin
+                if (window.adminSessaoTimeout) {
+                    clearTimeout(window.adminSessaoTimeout);
+                    window.adminSessaoTimeout = null;
+                }
+                
+                // Recarregar produtos
+                if (typeof window.carregarProdutos === 'function') {
+                    setTimeout(() => {
+                        window.carregarProdutos();
+                        console.log('✅ Produtos recarregados');
+                    }, 300);
+                }
+                
+                console.log('✅ Painel FECHADO com sucesso!');
+                alert('✅ Painel fechado com 1 clique!');
+                
+                return false;
+            }, true); // true = usar captura (maior prioridade)
+            
+            // ESTILO IMPOSSÍVEL DE IGNORAR
+            novoBotao.style.cssText = `
+                background: linear-gradient(135deg, #2ecc71, #27ae60) !important;
+                color: white !important;
+                border: 4px solid yellow !important;
+                padding: 12px 24px !important;
+                border-radius: 10px !important;
+                cursor: pointer !important;
+                font-weight: bold !important;
+                font-size: 16px !important;
+                box-shadow: 0 0 25px #2ecc71, 0 0 45px rgba(46, 204, 113, 0.8) !important;
+                position: relative !important;
+                z-index: 999999 !important;
+                animation: pulsar-nuclear 0.8s infinite !important;
+                min-width: 180px !important;
+                text-align: center !important;
+                margin-left: 10px !important;
+            `;
+            
+            // Substituir o botão antigo
+            oldBtn.parentNode.replaceChild(novoBotao, oldBtn);
+            console.log('✅ Botão substituído com solução nuclear');
+        });
+        
+        // 4. SE NÃO ENCONTRAR BOTÃO, CRIAR UM NOVO
+        if (!document.querySelector('#adminCloseBtn')) {
+            console.log('⚠️ Botão não encontrado, criando novo...');
+            
+            const novoBotao = document.createElement('button');
+            novoBotao.id = 'adminCloseBtn';
+            novoBotao.textContent = '🚀 FECHAR PAINEL';
+            
+            // Colocar no lugar correto
+            const headerDiv = document.querySelector('.modal div:first-child div:last-child');
+            if (headerDiv) {
+                headerDiv.appendChild(novoBotao);
+                console.log('✅ Novo botão criado');
+            }
+        }
+        
+        // 5. ADICIONAR ANIMAÇÃO CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes pulsar-nuclear {
+                0% { transform: scale(1); box-shadow: 0 0 25px #2ecc71, 0 0 45px rgba(46, 204, 113, 0.8); }
+                50% { transform: scale(1.05); box-shadow: 0 0 35px #2ecc71, 0 0 65px rgba(46, 204, 113, 1); }
+                100% { transform: scale(1); box-shadow: 0 0 25px #2ecc71, 0 0 45px rgba(46, 204, 113, 0.8); }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        console.log('🎯 Solução nuclear aplicada!');
+        
+    }, 100); // Pequeno delay para garantir que o DOM foi atualizado
+};
+
+// 6. INTERCEPTAR TODAS AS CHAMADAS DE RECARGA
+const originais = {
+    renderAdminProducts: window.renderAdminProducts,
+    askAdminPassword: window.askAdminPassword
+};
+
+// Sobrescrever renderAdminProducts para garantir consistência
+if (originais.renderAdminProducts) {
+    window.renderAdminProducts = async function() {
+        console.log('🔄 Abrindo painel admin (interceptado)...');
+        // Primeiro fechar qualquer modal existente
+        document.querySelectorAll('.modal-backdrop').forEach(m => m.remove());
+        
+        // Chamar função original
+        return originais.renderAdminProducts.apply(this, arguments);
+    };
+}
+
+
+// 8. FUNÇÃO DE EMERGÊNCIA MANUAL (chame no console se precisar)
+window.forceCloseButton = function() {
+    console.log('🚨 FORÇANDO BOTÃO FECHAR...');
+    
+    // Remover tudo
+    document.querySelectorAll('.modal-backdrop, .modal').forEach(el => el.remove());
+    
+    // Criar botão de emergência
+    const emergencyBtn = document.createElement('button');
+    emergencyBtn.textContent = '💣 FECHAR TUDO (EMERGÊNCIA)';
+    emergencyBtn.style.cssText = `
+        position: fixed !important;
+        top: 20px !important;
+        right: 20px !important;
+        background: red !important;
+        color: white !important;
+        padding: 15px 25px !important;
+        border: 3px solid yellow !important;
+        border-radius: 10px !important;
+        cursor: pointer !important;
+        z-index: 1000000 !important;
+        font-weight: bold !important;
+    `;
+    
+    emergencyBtn.onclick = function() {
+        document.querySelectorAll('.modal-backdrop, .modal').forEach(el => el.remove());
+        this.remove();
+        alert('✅ Tudo fechado!');
+    };
+    
+    document.body.appendChild(emergencyBtn);
+    
+    console.log('✅ Botão emergência criado!');
+    alert('🚨 Botão de emergência criado no canto superior direito!');
+};
+
+// =========================
+// FUNÇÕES DO MODO TÉCNICO (mantidas para compatibilidade)
+// =========================
+
+// 1. TESTAR PIX
+window.testarPIX = async function() {
+    console.log('🔍 Testando sistema PIX...');
+    
+    try {
+        const resultado = document.getElementById('resultadoDiagnostico') || document.createElement('div');
+        resultado.innerHTML = '🔄 Testando PIX...';
+        
+        // Verificar configuração atual
+        const pixSnap = await db.collection('config').doc('pix').get();
+        
+        if (!pixSnap.exists) {
+            resultado.innerHTML = '❌ PIX não configurado no Firebase';
+            alert('❌ PIX não configurado! Use o botão "Configurar PIX" no painel admin.');
+            return;
+        }
+        
+        const dadosPIX = pixSnap.data();
+        
+        // Verificar se tem chave
+        if (!dadosPIX.chave || dadosPIX.chave.trim() === '') {
+            resultado.innerHTML = '❌ Chave PIX vazia';
+            alert('❌ Chave PIX está vazia! Configure uma chave válida.');
+            return;
+        }
+        
+        // Verificar formato
+        const chave = dadosPIX.chave;
+        const apenasNumeros = chave.replace(/\D/g, '');
+        const temPrefixo = chave.startsWith('+55');
+        
+        let status = '';
+        if (temPrefixo && apenasNumeros.length === 13) {
+            status = '✅ FORMATO CORRETO';
+        } else if (apenasNumeros.length === 13 && !temPrefixo) {
+            status = '⚠️ FALTA +55';
+        } else if (apenasNumeros.length === 11) {
+            status = '❌ INCOMPLETO (11 dígitos)';
+        } else {
+            status = '⚠️ FORMATO INUSITADO';
+        }
+        
+        // Mostrar resultado
+        const resumo = `
+        📊 RESULTADO DO TESTE PIX:
+        
+        🔑 Chave: ***${chave.slice(-4)}
+        📱 Dígitos: ${apenasNumeros.length}
+        🌍 Prefixo: ${temPrefixo ? '✅ +55 presente' : '❌ Faltando +55'}
+        📋 Status: ${status}
+        👤 Titular: ${dadosPIX.nomeTitular || 'Não configurado'}
+        🏙️ Cidade: ${dadosPIX.cidadeTitular || 'Não configurada'}
+        
+        ${temPrefixo && apenasNumeros.length === 13 ? '✅ PIX CONFIGURADO CORRETAMENTE!' : '⚠️ VERIFIQUE A CONFIGURAÇÃO'}
+        `;
+        
+        if (resultado.parentNode) {
+            resultado.innerHTML = resumo.replace(/\n/g, '<br>');
+        }
+        
+        alert(resumo);
+        console.log('✅ Teste PIX concluído:', { chave: '***' + chave.slice(-4), status });
+        
+    } catch (error) {
+        console.error('❌ Erro no teste PIX:', error);
+        alert('❌ Erro ao testar PIX: ' + error.message);
+    }
+};
+
+// 2. VER LOGS
+window.verLogs = async function() {
+    console.log('📋 Buscando logs...');
+    
+    try {
+        const logsSnap = await db.collection('logs_seguranca')
+            .orderBy('timestamp', 'desc')
+            .limit(20)
+            .get();
+        
+        let logsHTML = '<strong>📋 ÚLTIMOS 20 LOGS:</strong><br><br>';
+        let logsConsole = '📋 LOGS DO SISTEMA:\n\n';
+        
+        if (logsSnap.empty) {
+            logsHTML += 'Nenhum log encontrado.';
+            logsConsole += 'Nenhum log encontrado.';
+        } else {
+            logsSnap.forEach(doc => {
+                const log = doc.data();
+                const data = new Date(log.timestamp).toLocaleString('pt-BR');
+                const tipo = log.tipo || 'desconhecido';
+                
+                logsHTML += `
+                <div style="border-left: 3px solid #3498db; padding-left: 8px; margin-bottom: 8px; font-size: 11px;">
+                    <strong>${data}</strong><br>
+                    <span style="color: #${tipo.includes('sucesso') ? '2ecc71' : tipo.includes('erro') ? 'e74c3c' : '3498db'}">
+                        ${tipo.toUpperCase()}
+                    </span><br>
+                    ${log.dados ? JSON.stringify(log.dados).substring(0, 100) + '...' : ''}
+                </div>
+                `;
+                
+                logsConsole += `${data} - ${tipo}\n`;
+            });
+        }
+        
+        // Mostrar em modal
+        const modalLogs = document.createElement('div');
+        modalLogs.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000000;
+        `;
+        
+        modalLogs.innerHTML = `
+            <div style="background: #2c3e50; color: white; padding: 20px; border-radius: 10px; width: 90%; max-width: 800px; max-height: 80vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0; color: #3498db;">📋 LOGS DO SISTEMA</h3>
+                    <button onclick="this.parentElement.parentElement.parentElement.remove()" 
+                            style="background: #e74c3c; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">
+                        FECHAR
+                    </button>
+                </div>
+                <div style="font-family: monospace; font-size: 12px;">
+                    ${logsHTML}
+                </div>
+                <div style="margin-top: 20px; text-align: center;">
+                    <button onclick="navigator.clipboard.writeText(\`${logsConsole}\'); alert('Logs copiados!');"
+                            style="background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">
+                        📋 Copiar para Área de Transferência
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modalLogs);
+        console.log('✅ Logs carregados:', logsSnap.size, 'registros');
+        
+    } catch (error) {
+        console.error('❌ Erro ao buscar logs:', error);
+        alert('❌ Erro ao buscar logs: ' + error.message);
+    }
+};
+
+// 3. LIMPAR CACHE LOCAL
+window.limparCacheLocal = function() {
+    console.log('🗑️ Limpando cache local...');
+    
+    if (confirm('⚠️ LIMPAR CACHE LOCAL?\n\nIsso irá:\n• Limpar carrinho atual\n• Remover dados locais\n• Manter configurações do Firebase\n\nContinuar?')) {
+        // Limpar localStorage
+        localStorage.clear();
+        
+        // Limpar carrinho
+        cart = [];
+        
+        // Recarregar produtos
+        if (typeof carregarProdutos === 'function') {
+            carregarProdutos();
+        }
+        
+        if (typeof renderCart === 'function') {
+            renderCart();
+        }
+        
+        // Limpar sessionStorage
+        sessionStorage.clear();
+        
+        console.log('✅ Cache local limpo!');
+        alert('✅ Cache local limpo com sucesso!\n\nO sistema será recarregado.');
+        
+        // Recarregar a página
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
+    }
+};
+
+// 4. RECARREGAR PRODUTOS
+window.recarregarProdutos = function() {
+    console.log('🔄 Recarregando produtos...');
+    
+    if (typeof carregarProdutos === 'function') {
+        carregarProdutos();
+        alert('✅ Produtos recarregados!');
+        console.log('✅ Produtos recarregados');
+    } else {
+        alert('❌ Função carregarProdutos não disponível');
+    }
+};
+
+// 5. EXECUTAR DIAGNÓSTICO
+window.executarDiagnostico = async function() {
+    console.log('🩺 Executando diagnóstico completo...');
+    
+    const resultado = document.getElementById('resultadoDiagnostico');
+    if (resultado) {
+        resultado.innerHTML = '🔄 Executando diagnóstico...';
+    }
+    
+    let diagnostico = '🩺 DIAGNÓSTICO DO SISTEMA:\n\n';
+    
+    try {
+        // 1. Verificar Firebase
+        diagnostico += '1. 🔥 FIREBASE:\n';
+        try {
+            const user = auth.currentUser;
+            diagnostico += `   • Autenticado: ${user ? '✅ Sim' : '❌ Não'}\n`;
+            diagnostico += `   • UID: ${user?.uid || 'N/A'}\n`;
+            diagnostico += `   • Email: ${user?.email || 'Anônimo'}\n`;
+        } catch (e) {
+            diagnostico += `   • Erro: ${e.message}\n`;
+        }
+        
+        // 2. Verificar PIX
+        diagnostico += '\n2. 💰 PIX:\n';
+        try {
+            const pixSnap = await db.collection('config').doc('pix').get();
+            if (pixSnap.exists) {
+                const pixData = pixSnap.data();
+                diagnostico += `   • Configurado: ✅ Sim\n`;
+                diagnostico += `   • Chave: ***${pixData.chave?.slice(-4) || 'N/A'}\n`;
+                diagnostico += `   • Nome: ${pixData.nomeTitular || 'N/A'}\n`;
+                diagnostico += `   • Cidade: ${pixData.cidadeTitular || 'N/A'}\n`;
+            } else {
+                diagnostico += `   • Configurado: ❌ Não\n`;
+            }
+        } catch (e) {
+            diagnostico += `   • Erro: ${e.message}\n`;
+        }
+        
+        // 3. Verificar Carrinho
+        diagnostico += '\n3. 🛒 CARRINHO:\n';
+        diagnostico += `   • Status: ${cartEnabled ? '✅ Ativo' : '⏸️ Pausado'}\n`;
+        diagnostico += `   • Itens: ${cart.length}\n`;
+        diagnostico += `   • Total: R$ ${calcTotal().toFixed(2)}\n`;
+        
+        // 4. Verificar LocalStorage
+        diagnostico += '\n4. 💾 LOCAL STORAGE:\n';
+        try {
+            const cartLS = localStorage.getItem('cart');
+            diagnostico += `   • Carrinho salvo: ${cartLS ? '✅ Sim' : '❌ Não'}\n`;
+            diagnostico += `   • Tamanho: ${localStorage.length} itens\n`;
+        } catch (e) {
+            diagnostico += `   • Erro: ${e.message}\n`;
+        }
+        
+        // 5. Verificar Navegador
+        diagnostico += '\n5. 🌐 NAVEGADOR:\n';
+        diagnostico += `   • Online: ${navigator.onLine ? '✅ Sim' : '❌ Não'}\n`;
+        diagnostico += `   • User Agent: ${navigator.userAgent.substring(0, 50)}...\n`;
+        
+        // 6. Verificar Permissões
+        diagnostico += '\n6. 🔐 PERMISSÕES:\n';
+        diagnostico += `   • Clipboard: ${navigator.clipboard ? '✅ Disponível' : '❌ Indisponível'}\n`;
+        diagnostico += `   • Geolocation: ${navigator.geolocation ? '✅ Disponível' : '❌ Indisponível'}\n`;
+        
+        // Mostrar resultado
+        console.log(diagnostico);
+        
+        if (resultado) {
+            resultado.innerHTML = diagnostico.replace(/\n/g, '<br>');
+        }
+        
+        // Criar modal com resultado completo
+        const modalDiagnostico = document.createElement('div');
+        modalDiagnostico.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000000;
+            font-family: monospace;
+        `;
+        
+        modalDiagnostico.innerHTML = `
+            <div style="background: #2c3e50; color: white; padding: 20px; border-radius: 10px; width: 90%; max-width: 700px; max-height: 80vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0; color: #3498db;">🩺 DIAGNÓSTICO COMPLETO</h3>
+                    <button onclick="this.parentElement.parentElement.parentElement.remove()" 
+                            style="background: #e74c3c; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">
+                        FECHAR
+                    </button>
+                </div>
+                <div style="font-size: 12px; line-height: 1.6; white-space: pre-wrap;">
+                    ${diagnostico}
+                </div>
+                <div style="margin-top: 20px; text-align: center;">
+                    <button onclick="navigator.clipboard.writeText(\`${diagnostico}\'); alert('Diagnóstico copiado!');"
+                            style="background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">
+                        📋 Copiar Diagnóstico
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modalDiagnostico);
+        
+    } catch (error) {
+        console.error('❌ Erro no diagnóstico:', error);
+        if (resultado) {
+            resultado.innerHTML = `❌ Erro no diagnóstico: ${error.message}`;
+        }
+        alert('❌ Erro no diagnóstico: ' + error.message);
+    }
+};
+
+// 6. RESETAR SISTEMA
+window.resetarSistema = function() {
+    if (confirm('⚠️ ⚠️ ⚠️  RESETAR SISTEMA COMPLETO?\n\nIsso irá:\n• Limpar TODO o cache local\n• Remover carrinho atual\n• Recarregar TODOS os dados\n• Manter configurações do Firebase\n\n🚨 Esta ação não pode ser desfeita!\n\nContinuar?')) {
+        console.log('♻️ Resetando sistema...');
+        
+        // Limpar tudo
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Resetar variáveis
+        cart = [];
+        cartEnabled = true;
+        
+        // Mostrar loading
+        const loading = document.createElement('div');
+        loading.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000000;
+            color: white;
+            font-family: Arial, sans-serif;
+        `;
+        loading.innerHTML = `
+            <h2 style="color: #2ecc71;">♻️ RESETANDO SISTEMA...</h2>
+            <p>Aguarde enquanto o sistema é reinicializado.</p>
+            <div style="border: 2px solid #3498db; width: 200px; height: 10px; border-radius: 5px; margin: 20px;">
+                <div id="progressoReset" style="background: #2ecc71; height: 100%; width: 0%; border-radius: 3px;"></div>
+            </div>
+        `;
+        
+        document.body.appendChild(loading);
+        
+        // Animar progresso
+        let progresso = 0;
+        const intervalo = setInterval(() => {
+            progresso += 20;
+            const barra = document.getElementById('progressoReset');
+            if (barra) barra.style.width = progresso + '%';
+            
+            if (progresso >= 100) {
+                clearInterval(intervalo);
+                setTimeout(() => {
+                    loading.remove();
+                    location.reload();
+                }, 500);
+            }
+        }, 200);
+    }
+};
+
+// =========================
+  // SISTEMA DE GESTÃO DE SENHAS (MODO TÉCNICO) - MODIFICADO
+  // =========================
+
+  // 1. VER SENHAS CONFIGURADAS (MODIFICADO)
+  window.verSenhasSistema = async function() {
+      console.log('🔐 Buscando senhas do sistema...');
+      
+      try {
+          // Buscar todas as senhas/configurações
+          const [adminSnap, pixSnap, whatsappSnap, tecnicoSnap, whatsappSenhaSnap] = await Promise.all([
+              db.collection('config').doc('admin').get(),
+              db.collection('config').doc('pix').get(),
+              db.collection('config').doc('whatsapp').get(),
+              db.collection('config').doc('tecnico_senha').get(),
+              db.collection('config').doc('whatsapp_senha').get() // <-- ADICIONADO
+          ]);
+          
+          // Criar modal de senhas
+          const modalSenhas = document.createElement('div');
+          modalSenhas.style.cssText = `
+              position: fixed;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              background: rgba(0,0,0,0.9);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              z-index: 1000000;
+              font-family: 'Courier New', monospace;
+          `;
+          
+          let conteudoSenhas = '<h3 style="color: #3498db; text-align: center;">🔐 SENHAS DO SISTEMA</h3>';
+          
+          // Senha Admin
+          conteudoSenhas += '<div style="background: #2c3e50; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #e74c3c;">';
+          conteudoSenhas += '<strong style="color: #e74c3c;">👑 ADMINISTRADOR</strong><br>';
+          if (adminSnap.exists) {
+              const adminData = adminSnap.data();
+              conteudoSenhas += `• Senha hash: <code style="color: #f39c12;">${adminData.senha ? adminData.senha.substring(0, 20) + '...' : 'Não configurada'}</code><br>`;
+              conteudoSenhas += `• Última atualização: ${adminData.atualizadoEm || 'N/A'}<br>`;
+          } else {
+              conteudoSenhas += '• ❌ Não configurada<br>';
+          }
+          conteudoSenhas += '<button onclick="trocarSenhaAdmin()" style="margin-top: 10px; background: #e74c3c; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 12px;">';
+          conteudoSenhas += '🔑 Trocar Senha Admin</button>';
+          conteudoSenhas += '</div>';
+          
+          // Configuração PIX
+          conteudoSenhas += '<div style="background: #2c3e50; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #9b59b6;">';
+          conteudoSenhas += '<strong style="color: #9b59b6;">💰 CONFIGURAÇÃO PIX</strong><br>';
+          if (pixSnap.exists) {
+              const pixData = pixSnap.data();
+              conteudoSenhas += `• Chave PIX: <code style="color: #2ecc71;">${pixData.chave || 'Não configurada'}</code><br>`;
+              conteudoSenhas += `• Nome: ${pixData.nomeTitular || 'N/A'}<br>`;
+              conteudoSenhas += `• Cidade: ${pixData.cidadeTitular || 'N/A'}<br>`;
+              conteudoSenhas += `• Ativado: ${pixData.isPixEnabled ? '✅ Sim' : '❌ Não'}<br>`;
+              conteudoSenhas += `• Senha PIX: ${pixData.senha ? '🔒 Configurada' : '❌ Não tem senha separada'}<br>`;
+          } else {
+              conteudoSenhas += '• ❌ Não configurado<br>';
+          }
+          conteudoSenhas += '</div>';
+          
+          // Senha WhatsApp (SEPARADA) - NOVA SEÇÃO
+          conteudoSenhas += '<div style="background: #2c3e50; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #25D366;">';
+          conteudoSenhas += '<strong style="color: #25D366;">📱 WHATSAPP (SEPARADA)</strong><br>';
+          if (whatsappSenhaSnap.exists) {
+              const whatsappSenhaData = whatsappSenhaSnap.data();
+              conteudoSenhas += `• Senha hash: <code style="color: #25D366;">${whatsappSenhaData.hash ? whatsappSenhaData.hash.substring(0, 20) + '...' : 'Não configurada'}</code><br>`;
+              conteudoSenhas += `• Última atualização: ${whatsappSenhaData.criadoEm || 'N/A'}<br>`;
+              conteudoSenhas += `• Primeiro acesso: ${whatsappSenhaData.primeiroAcesso ? '✅ Sim' : '❌ Não'}<br>`;
+          } else {
+              conteudoSenhas += '• ❌ Não configurada (será criada no primeiro acesso)<br>';
+          }
+          conteudoSenhas += '<button onclick="trocarSenhaWhatsApp()" style="margin-top: 10px; background: #25D366; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 12px;">';
+          conteudoSenhas += '📱 Alterar Senha WhatsApp</button>';
+          conteudoSenhas += '</div>';
+          
+          // Configuração WhatsApp
+          conteudoSenhas += '<div style="background: #2c3e50; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #25D366;">';
+          conteudoSenhas += '<strong style="color: #25D366;">📱 WHATSAPP (NÚMERO)</strong><br>';
+          if (whatsappSnap.exists) {
+              const whatsData = whatsappSnap.data();
+              conteudoSenhas += `• Número: <code style="color: #2ecc71;">${whatsData.numero || 'Não configurado'}</code><br>`;
+              conteudoSenhas += `• Atualizado: ${whatsData.atualizadoEm || 'N/A'}<br>`;
+          } else {
+              conteudoSenhas += '• ❌ Não configurado<br>';
+          }
+          conteudoSenhas += '</div>';
+          
+          // Senha Técnico (EXCLUSIVA) - NOVA SEÇÃO
+          conteudoSenhas += '<div style="background: #2c3e50; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #f39c12;">';
+          conteudoSenhas += '<strong style="color: #f39c12;">🔧 MODO TÉCNICO (EXCLUSIVA)</strong><br>';
+          if (tecnicoSnap.exists) {
+              const tecnicoData = tecnicoSnap.data();
+              conteudoSenhas += `• Senha hash: <code style="color: #f39c12;">${tecnicoData.senha ? tecnicoData.senha.substring(0, 20) + '...' : 'Não configurada'}</code><br>`;
+              conteudoSenhas += `• Última alteração: ${tecnicoData.atualizadoEm || 'N/A'}<br>`;
+              conteudoSenhas += `• Tipo: ${tecnicoData.tipo || 'modo_tecnico'}<br>`;
+          } else {
+              conteudoSenhas += '• ❌ Não configurada (usará padrão: tecnico123)<br>';
+          }
+          conteudoSenhas += '<button onclick="trocarSenhaTecnico()" style="margin-top: 10px; background: #f39c12; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 12px;">';
+          conteudoSenhas += '🔧 Alterar Senha Técnico</button>';
+          conteudoSenhas += '</div>';
+          
+          // Informações de segurança
+          conteudoSenhas += '<div style="background: #c0392b; padding: 10px; border-radius: 5px; margin-top: 20px; font-size: 11px;">';
+          conteudoSenhas += '⚠️ <strong>INFORMAÇÕES SENSÍVEIS!</strong><br>';
+          conteudoSenhas += '• As senhas são armazenadas como HASH (não texto)<br>';
+          conteudoSenhas += '• Esta tela só é acessível via modo técnico<br>';
+          conteudoSenhas += '• Mantenha essas informações em segredo<br>';
+          conteudoSenhas += '• Senha do WhatsApp é SEPARADA das outras<br>';
+          conteudoSenhas += '• Senha do técnico é EXCLUSIVA (diferente do admin)';
+          conteudoSenhas += '</div>';
+          
+          modalSenhas.innerHTML = `
+              <div style="background: #34495e; color: white; padding: 25px; border-radius: 10px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                  ${conteudoSenhas}
+                  <div style="text-align: center; margin-top: 20px;">
+                      <button onclick="this.parentElement.parentElement.remove()" 
+                              style="background: #7f8c8d; color: white; border: none; padding: 10px 25px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                          🔒 Fechar
+                      </button>
+                      <button onclick="navigator.clipboard.writeText(document.querySelector('#senhasTexto').innerText); alert('Copiado!');"
+                              style="background: #3498db; color: white; border: none; padding: 10px 25px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-left: 10px;">
+                          📋 Copiar
+                      </button>
+                  </div>
+                  <div id="senhasTexto" style="display: none;">
+                      SENHAS DO SISTEMA - ${new Date().toLocaleString()}
+                      Admin: ${adminSnap.exists ? 'Configurado' : 'Não configurado'}
+                      PIX: ${pixSnap.exists ? 'Configurado' : 'Não configurado'}
+                      WhatsApp: ${whatsappSenhaSnap.exists ? 'Configurado' : 'Não configurado'}
+                      Técnico: ${tecnicoSnap.exists ? 'Configurado' : 'Não configurado'}
+                  </div>
+              </div>
+          `;
+          
+          document.body.appendChild(modalSenhas);
+          console.log('✅ Senhas carregadas com sucesso!');
+          
+      } catch (error) {
+          console.error('❌ Erro ao buscar senhas:', error);
+          alert('❌ Erro: ' + error.message);
+      }
+  };
+
+  // 2. TROCAR SENHA DO ADMIN (já existe, mantida para referência)
+  window.trocarSenhaAdmin = async function() {
+      console.log('🔑 Iniciando troca de senha admin...');
+      
+      // Modal para nova senha
+      const modalSenha = document.createElement('div');
+      modalSenha.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000001;
+      `;
+      
+      modalSenha.innerHTML = `
+          <div style="background: #2c3e50; color: white; padding: 25px; border-radius: 10px; width: 90%; max-width: 400px;">
+              <h3 style="color: #e74c3c; margin-top: 0; text-align: center;">🔑 ALTERAR SENHA ADMIN</h3>
+              
+              <div style="margin-bottom: 15px;">
+                  <label style="display: block; margin-bottom: 5px; font-size: 14px;">Senha Atual (para confirmar):</label>
+                  <input type="password" id="senhaAtualAdmin" 
+                        style="width: 100%; padding: 10px; border-radius: 5px; border: 2px solid #3498db; background: #34495e; color: white;"
+                        placeholder="Digite a senha atual">
+              </div>
+              
+              <div style="margin-bottom: 15px;">
+                  <label style="display: block; margin-bottom: 5px; font-size: 14px;">Nova Senha:</label>
+                  <input type="password" id="novaSenhaAdmin" 
+                        style="width: 100%; padding: 10px; border-radius: 5px; border: 2px solid #2ecc71; background: #34495e; color: white;"
+                        placeholder="Digite a nova senha">
+              </div>
+              
+              <div style="margin-bottom: 20px;">
+                  <label style="display: block; margin-bottom: 5px; font-size: 14px;">Confirmar Nova Senha:</label>
+                  <input type="password" id="confirmarSenhaAdmin" 
+                        style="width: 100%; padding: 10px; border-radius: 5px; border: 2px solid #2ecc71; background: #34495e; color: white;"
+                        placeholder="Digite novamente">
+              </div>
+              
+              <div style="background: #34495e; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 12px;">
+                  <strong>📝 Requisitos da senha:</strong><br>
+                  • Mínimo 4 caracteres<br>
+                  • Recomendado: letras + números<br>
+                  • Não usar senhas óbvias (1234, admin, etc)
+              </div>
+              
+              <div style="display: flex; gap: 10px; justify-content: center;">
+                  <button id="btnCancelarSenha" 
+                          style="background: #7f8c8d; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; flex: 1;">
+                      ❌ Cancelar
+                  </button>
+                  <button id="btnConfirmarSenha" 
+                          style="background: #2ecc71; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; flex: 1;">
+                      ✅ Confirmar
+                  </button>
+              </div>
+              
+              <div style="margin-top: 15px; font-size: 11px; color: #95a5a6; text-align: center;">
+                  Esta senha será usada para acessar o painel administrativo
+              </div>
+          </div>
+      `;
+      
+      document.body.appendChild(modalSenha);
+      
+      // Configurar eventos
+      document.getElementById('btnCancelarSenha').onclick = function() {
+          modalSenha.remove();
+          console.log('❌ Troca de senha cancelada');
+      };
+      
+      document.getElementById('btnConfirmarSenha').onclick = async function() {
+          const senhaAtual = document.getElementById('senhaAtualAdmin').value;
+          const novaSenha = document.getElementById('novaSenhaAdmin').value;
+          const confirmarSenha = document.getElementById('confirmarSenhaAdmin').value;
+          
+          // Validações
+          if (!senhaAtual || !novaSenha || !confirmarSenha) {
+              alert('❌ Todos os campos são obrigatórios!');
+              return;
+          }
+          
+          if (novaSenha !== confirmarSenha) {
+              alert('❌ As novas senhas não coincidem!');
+              return;
+          }
+          
+          if (novaSenha.length < 4) {
+              alert('❌ A nova senha deve ter pelo menos 4 caracteres!');
+              return;
+          }
+          
+          try {
+              // Verificar senha atual
+              const senhaAtualHash = await hashSenha(senhaAtual);
+              const senhaValida = await verificarSenhaAdmin(senhaAtualHash);
+              
+              if (!senhaValida) {
+                  alert('❌ Senha atual incorreta!');
+                  return;
+              }
+              
+              // Calcular hash da nova senha
+              const novaSenhaHash = await hashSenha(novaSenha);
+              
+              // Atualizar no Firebase
+              await db.collection('config').doc('admin').set({
+                  senha: novaSenhaHash,
+                  atualizadoEm: new Date().toISOString(),
+                  atualizadoPor: auth.currentUser?.uid || 'modo_tecnico',
+                  ip: await getUserIP()
+              }, { merge: true });
+              
+              // Log da alteração
+              await sistemaLogs.registrar('senha_admin_alterada', {
+                  alteradoPor: auth.currentUser?.uid,
+                  ip: await getUserIP(),
+                  timestamp: new Date().toISOString()
+              });
+              
+              // Fechar modal
+              modalSenha.remove();
+              
+              // Mostrar sucesso
+              alert(`✅ SENHA ADMIN ALTERADA COM SUCESSO!\n\nNova senha configurada.\n\nAnote em local seguro!`);
+              
+              console.log('✅ Senha admin alterada com sucesso!');
+              
+          } catch (error) {
+              console.error('❌ Erro ao alterar senha:', error);
+              alert('❌ Erro: ' + error.message);
+          }
+      };
+      
+      // Permitir Enter para confirmar
+      modalSenha.addEventListener('keypress', function(e) {
+          if (e.key === 'Enter') {
+              document.getElementById('btnConfirmarSenha').click();
+          }
+      });
+      
+      // Focar no primeiro campo
+      document.getElementById('senhaAtualAdmin').focus();
+  };
+
+// =========================
+// FUNÇÃO PARA ALTERAR SENHA DO WHATSAPP (NOVA)
+// =========================
+window.trocarSenhaWhatsApp = async function() {
+  console.log('📱 Alterando senha do WhatsApp...');
+  
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000001;
+  `;
+  
+  modal.innerHTML = `
+    <div style="background: #2c3e50; color: white; padding: 25px; border-radius: 10px; width: 90%; max-width: 400px;">
+      <h3 style="color: #25D366; margin-top: 0; text-align: center;">📱 ALTERAR SENHA DO WHATSAPP</h3>
+      
+      <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 5px;">Senha Atual do WhatsApp:</label>
+        <input type="password" id="senhaAtualWhatsApp" 
+              style="width: 100%; padding: 10px; border-radius: 5px; border: 2px solid #25D366; background: #34495e; color: white;"
+              placeholder="Digite a senha atual">
+      </div>
+      
+      <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 5px;">Nova Senha:</label>
+        <input type="password" id="novaSenhaWhatsApp" 
+              style="width: 100%; padding: 10px; border-radius: 5px; border: 2px solid #2ecc71; background: #34495e; color: white;"
+              placeholder="Digite a nova senha">
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 5px;">Confirmar Nova Senha:</label>
+        <input type="password" id="confirmarSenhaWhatsApp" 
+              style="width: 100%; padding: 10px; border-radius: 5px; border: 2px solid #2ecc71; background: #34495e; color: white;"
+              placeholder="Digite novamente">
+      </div>
+      
+      <div style="background: #34495e; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 12px;">
+        <strong>📝 Importante:</strong><br>
+        • Esta senha é usada APENAS para configurar o WhatsApp<br>
+        • Não afeta a senha do administrador<br>
+        • Recomendado: senha diferente das outras
+      </div>
+      
+      <div style="display: flex; gap: 10px;">
+        <button id="btnCancelarWhatsApp" 
+                style="background: #7f8c8d; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; flex: 1;">
+          ❌ Cancelar
+        </button>
+        <button id="btnConfirmarWhatsApp" 
+                style="background: #2ecc71; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; flex: 1;">
+          ✅ Confirmar
+        </button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Fechar modal ao clicar fora
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+  
+  document.getElementById('btnCancelarWhatsApp').onclick = function() {
+    modal.remove();
+  };
+  
+  document.getElementById('btnConfirmarWhatsApp').onclick = async function() {
+    const senhaAtual = document.getElementById('senhaAtualWhatsApp').value;
+    const novaSenha = document.getElementById('novaSenhaWhatsApp').value;
+    const confirmarSenha = document.getElementById('confirmarSenhaWhatsApp').value;
+    
+    // Validações
+    if (!senhaAtual || !novaSenha || !confirmarSenha) {
+      alert('❌ Todos os campos são obrigatórios!');
+      return;
+    }
+    
+    if (novaSenha !== confirmarSenha) {
+      alert('❌ As novas senhas não coincidem!');
+      return;
+    }
+    
+    if (novaSenha.length < 4) {
+      alert('❌ A senha deve ter pelo menos 4 caracteres!');
+      return;
+    }
+    
+    try {
+      // Verificar senha atual
+      const senhaAtualHash = await hashSenha(senhaAtual);
+      const senhaValida = await verificarSenhaWhatsApp(senhaAtual);
+      
+      if (!senhaValida) {
+        alert('❌ Senha atual incorreta!');
+        return;
+      }
+      
+      // Calcular hash da nova senha
+      const novaSenhaHash = await hashSenha(novaSenha);
+      
+      // Atualizar no Firebase
+      await db.collection('config').doc('whatsapp_senha').set({
+        hash: novaSenhaHash,
+        atualizadoEm: new Date().toISOString(),
+        atualizadoPor: auth.currentUser?.uid,
+        ultimaAlteracao: new Date().toISOString()
+      }, { merge: true });
+      
+      // Log da alteração
+      await sistemaLogs.registrar('senha_whatsapp_alterada', {
+        alteradoPor: auth.currentUser?.uid,
+        ip: await getUserIP()
+      });
+      
+      // Fechar modal
+      modal.remove();
+      
+      // Mostrar sucesso
+      alert(`✅ SENHA DO WHATSAPP ALTERADA!\n\nNova senha configurada com sucesso.\n\nAnote em local seguro!`);
+      
+      console.log('✅ Senha do WhatsApp alterada com sucesso!');
+      
+    } catch (error) {
+      console.error('❌ Erro ao alterar senha:', error);
+      alert('❌ Erro: ' + error.message);
+    }
+  };
+  
+  // Focar no primeiro campo
+  document.getElementById('senhaAtualWhatsApp').focus();
+  
+  // Enter para confirmar
+  modal.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      document.getElementById('btnConfirmarWhatsApp').click();
+    }
+  });
+};
+
+// =========================
+// ATIVAR MODO TÉCNICO AUTOMATICAMENTE NO CONSOLE
+// =========================
+console.log('🔧 MODO TÉCNICO DISPONÍVEL!');
+console.log('💡 Digite no console:');
+console.log('• ativarModoTecnico() - Abrir painel técnico (senha exclusiva)');
+
+// Atalho de teclado para modo técnico (Ctrl+Alt+T)
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.altKey && e.key === 't') {
+        e.preventDefault();
+        console.log('🎯 Atalho Ctrl+Alt+T detectado - solicitando acesso...');
+        if (typeof ativarModoTecnico === 'function') {
+            ativarModoTecnico();
+        }
+    }
+});
+
+console.log('🎯 Atalho: Ctrl+Alt+T para modo técnico (com senha exclusiva)');
+console.log('🔑 Senha padrão do técnico: tecnico123 (altere no primeiro acesso)');
+</script>
+</body>
+</html>
