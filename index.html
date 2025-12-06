@@ -1661,7 +1661,7 @@ async function enviarWhats() {
   btnWhats.disabled = true;
 
   try {
-    // ✅ 1º PASSO: VERIFICAR ESTOQUE
+    // ✅ 1º PASSO: VERIFICAR SE O ESTOQUE ESTÁ PAUSADO
     const estoqueSnap = await db.collection('config').doc('estoque').get();
     const estoquePausado = estoqueSnap.exists ? estoqueSnap.data().pausado : false;
     
@@ -1672,6 +1672,7 @@ async function enviarWhats() {
       return;
     }
 
+    // ✅ 2º PASSO: VERIFICAR ESTOQUE DOS PRODUTOS (APENAS VERIFICAÇÃO)
     for (const item of cart) {
       const produtoRef = db.collection('produtos').doc(item.id);
       const snap = await produtoRef.get();
@@ -1694,21 +1695,8 @@ async function enviarWhats() {
       }
     }
 
-    // ✅ 2º PASSO: RESERVAR ESTOQUE
-    for (const item of cart) {
-      const produtoRef = db.collection('produtos').doc(item.id);
-      const snap = await produtoRef.get();
-      const produtoData = snap.data();
-      const stockAtual = produtoData.stock || 0;
-      
-      await produtoRef.update({
-        stock: stockAtual - item.qty
-      });
-    }
-
     // ✅ 3º PASSO: BUSCAR NÚMERO DO WHATSAPP
     let numeroWhatsApp = '';
-    
     try {
       const whatsSnap = await db.collection('config').doc('whatsapp').get();
       if (whatsSnap.exists && whatsSnap.data().numero) {
@@ -1727,12 +1715,11 @@ async function enviarWhats() {
       return;
     }
 
-    // ✅ 4º PASSO: MONTAR MENSAGEM SIMPLIFICADA
+    // ✅ 4º PASSO: MONTAR MENSAGEM
     const name = document.getElementById('clientName')?.value.trim() || 'Não informado';
     const phone = document.getElementById('clientPhone')?.value.trim() || 'Não informado';
     const address = document.getElementById('clientAddress')?.value.trim() || 'Não informado';
     const locationLink = document.getElementById('clientLocation')?.value.trim() || 'Não informado';
-
     let troco = document.getElementById('clientTroco')?.value.trim() || 'Não precisa de troco';
 
     let msg = '*🛒 NOVO PEDIDO - HORTIFRUTI* 🛒\n\n';
@@ -1759,204 +1746,89 @@ async function enviarWhats() {
     
     msg += `*TOTAL: ${formatBRL(totalPedido)}*\n\n`;
     msg += `_💖Agradecemos pela sua preferência_\n`;
-    msg += `_🛒seu pedigo já está sendo providenciado_\n`;
+    msg += `_🛒seu pedido já está sendo providenciado_\n`;
     msg += `*Chave PIX:* ${rawPixPhone || 'Não configurada'}\n`;
     msg += `*Data:* ${new Date().toLocaleDateString('pt-BR')}`;
 
     // ✅ 5º PASSO: CRIAR URL DO WHATSAPP
     const mensagemCodificada = encodeURIComponent(msg);
-    
-    // ✅ MÉTODO MULTICAMADA PARA CELULAR
-    // Tentar diferentes URLs para evitar o banner do Chrome
-    
-    // Método 1: whatsapp:// (esquema nativo - funciona direto no app)
-    const urlNative = `whatsapp://send?phone=${numeroWhatsApp}&text=${mensagemCodificada}`;
-    
-    // Método 2: api.whatsapp.com (URL oficial - mais confiável)
     const urlAPI = `https://api.whatsapp.com/send?phone=${numeroWhatsApp}&text=${mensagemCodificada}`;
     
-    // Método 3: wa.me (alternativa)
-    const urlWaMe = `https://wa.me/${numeroWhatsApp}?text=${mensagemCodificada}`;
-    
-    console.log('🔗 URLs WhatsApp geradas:', { urlNative, urlAPI, urlWaMe });
-    console.log('📱 Número:', numeroWhatsApp);
+    console.log('🔗 URL WhatsApp gerada:', urlAPI);
 
-    // ✅ 6º PASSO: LIMPAR CARRINHO
-    cart = [];
-    saveCart();
-    renderCart();
-    carregarProdutos();
-
-    // ✅ 7º PASSO: ABRIR WHATSAPP - MÉTODO OTIMIZADO PARA CELULAR
+    // ✅ 6º PASSO: CONFIRMAÇÃO FINAL DO USUÁRIO (AGORA NO LUGAR CERTO!)
     const confirmacao = confirm(
-      `✅ PEDIDO PROCESSADO!\n\n` +
-      `Será enviado para: ${numeroWhatsApp}\n` +
-      `Total: ${formatBRL(totalPedido)}\n\n` +
-      `Abrir WhatsApp agora?`
+      `📱 ENVIAR PEDIDO PARA WHATSAPP?\n\n` +
+      `Número: ${numeroWhatsApp}\n` +
+      `Total: ${formatBRL(totalPedido)}\n` +
+      `Cliente: ${name}\n\n` +
+      `Clique em OK para abrir o WhatsApp e enviar.\n` +
+      `Clique em CANCELAR para voltar ao carrinho.`
     );
     
+    // 🔴🔴🔴 AQUI ESTÁ A CORREÇÃO CRÍTICA:
+    // SÓ REDUZIR ESTOQUE E LIMPAR CARRINHO SE O USUÁRIO CONFIRMAR
+    
     if (confirmacao) {
-      console.log('🌐 Abrindo WhatsApp nativo...');
+      console.log('✅ Usuário confirmou - processando pedido...');
       
-      // Função para mostrar instruções de fallback
-      function mostrarInstrucoesFallback() {
-        // Copiar mensagem completa para área de transferência
-        const mensagemParaCopiar = msg; // Já temos a mensagem montada
+      // ✅ 7º PASSO: RESERVAR ESTOQUE (APENAS SE CONFIRMAR)
+      for (const item of cart) {
+        const produtoRef = db.collection('produtos').doc(item.id);
+        const snap = await produtoRef.get();
+        const produtoData = snap.data();
+        const stockAtual = produtoData.stock || 0;
         
-        // Tentar copiar para área de transferência
-        if (navigator.clipboard && window.isSecureContext) {
-          navigator.clipboard.writeText(mensagemParaCopiar)
-            .then(() => {
-              alert(
-                '📱 INSTRUÇÕES PARA ENVIAR:\n\n' +
-                '1. Abra o WhatsApp MANUALMENTE\n' +
-                '2. Vá para: ' + numeroWhatsApp + '\n' +
-                '3. COLE a mensagem (já foi copiada!)\n' +
-                '4. Envie normalmente\n\n' +
-                '✅ Mensagem copiada para área de transferência!'
-              );
-            })
-            .catch(() => {
-              alert(
-                '📱 INSTRUÇÕES PARA ENVIAR:\n\n' +
-                '1. Abra o WhatsApp MANUALMENTE\n' +
-                '2. Vá para: ' + numeroWhatsApp + '\n' +
-                '3. Copie a mensagem abaixo:\n\n' +
-                mensagemParaCopiar.substring(0, 200) + '...\n\n' +
-                '4. Cole e envie'
-              );
-            });
-        } else {
-          alert(
-            '📱 INSTRUÇÕES PARA ENVIAR:\n\n' +
-            '1. Abra o WhatsApp MANUALMENTE\n' +
-            '2. Vá para: ' + numeroWhatsApp + '\n' +
-            '3. Copie a mensagem abaixo:\n\n' +
-            mensagemParaCopiar.substring(0, 200) + '...\n\n' +
-            '4. Cole e envie'
-          );
-        }
+        await produtoRef.update({
+          stock: stockAtual - item.qty,
+          atualizadoEm: new Date().toISOString()
+        });
       }
-      
-      // Detectar dispositivo
-      const isAndroid = /android/i.test(navigator.userAgent);
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-      const isMobile = isAndroid || isIOS;
-      
-      // ESTRATÉGIA DE ABERTURA
-      if (isMobile) {
-        // Para celular: tentar múltiplos métodos
-        let tentativaAtual = 0;
-        const maxTentativas = 3;
-        
-        function tentarAbrirWhatsApp() {
-          tentativaAtual++;
-          
-          if (tentativaAtual > maxTentativas) {
-            // Todos os métodos falharam
-            mostrarInstrucoesFallback();
-            return;
-          }
-          
-          let urlUsar = urlAPI; // Começa com API
-          
-          if (isAndroid && tentativaAtual === 1) {
-            // Android: tenta esquema nativo primeiro
-            urlUsar = urlNative;
-          } else if (isIOS && tentativaAtual === 1) {
-            // iOS: usa URL padrão
-            urlUsar = urlAPI;
-          } else if (tentativaAtual === 2) {
-            // Segunda tentativa: tenta wa.me
-            urlUsar = urlWaMe;
-          } else if (tentativaAtual === 3) {
-            // Terceira tentativa: tenta iframe
-            urlUsar = urlAPI;
-          }
-          
-          console.log(`Tentativa ${tentativaAtual}: ${urlUsar.substring(0, 60)}...`);
-          
-          // TÉCNICA: Usar iframe invisível
-          try {
-            const iframe = document.createElement('iframe');
-            iframe.style.cssText = 'position:absolute;width:1px;height:1px;border:0;opacity:0;';
-            iframe.src = urlUsar;
-            document.body.appendChild(iframe);
-            
-            // Remove o iframe após 0.5 segundo
-            setTimeout(() => {
-              if (iframe && iframe.parentNode) {
-                iframe.parentNode.removeChild(iframe);
-              }
-              
-              // Se ainda não na última tentativa, tenta o próximo método
-              if (tentativaAtual < maxTentativas) {
-                setTimeout(() => {
-                  tentarAbrirWhatsApp();
-                }, 300);
-              }
-            }, 500);
-            
-          } catch (error) {
-            console.log('Erro com iframe:', error);
-            // Tenta próximo método
-            if (tentativaAtual < maxTentativas) {
-              setTimeout(() => {
-                tentarAbrirWhatsApp();
-              }, 300);
-            }
-          }
-        }
-        
-        // Iniciar processo
-        tentarAbrirWhatsApp();
-        
-        // Após 3 segundos, verificar e dar instruções
-        setTimeout(() => {
-          const abriuWhatsApp = confirm(
-            '📱 WhatsApp foi aberto?\n\n' +
-            'Se SIM, clique em "Cancelar" e envie a mensagem.\n\n' +
-            'Se NÃO abriu, clique em "OK" para ver instruções.'
-          );
-          
-          if (abriuWhatsApp) {
-            // Usuário disse que NÃO abriu
-            mostrarInstrucoesFallback();
-          }
-          // Se SIM abriu, não faz nada - o usuário já está no WhatsApp
-        }, 3000);
-        
-      } else {
-        // Para desktop: usar método simples
-        try {
-          window.open(urlAPI, '_blank', 'noopener,noreferrer');
-        } catch (error) {
-          console.log('Erro ao abrir WhatsApp Web:', error);
-          window.location.href = urlAPI;
-        }
+
+      // ✅ 8º PASSO: LIMPAR CARRINHO (APENAS SE CONFIRMAR)
+      cart = [];
+      saveCart();
+      renderCart();
+      carregarProdutos();
+
+      // ✅ 9º PASSO: ABRIR WHATSAPP
+      console.log('🌐 Abrindo WhatsApp...');
+      try {
+        window.open(urlAPI, '_blank', 'noopener,noreferrer');
+      } catch (error) {
+        console.log('Erro ao abrir WhatsApp Web:', error);
+        window.location.href = urlAPI;
       }
-      
-      // Feedback final (sempre aparece)
+
+      // ✅ 10º PASSO: FEEDBACK DE SUCESSO
       setTimeout(() => {
-        alert('✅ Pedido processado com sucesso!\n\n' +
+        alert('✅ Pedido enviado com sucesso!\n\n' +
               '• Carrinho limpo\n' +
               '• Estoque atualizado\n' +
-              '• Pronto para enviar no WhatsApp\n\n' +
+              '• WhatsApp aberto para envio\n\n' +
               'Agradecemos pelo pedido! 🛒');
-      }, 1000);
+      }, 500);
       
     } else {
-      alert('⚠️ Pedido processado mas não enviado.\nO carrinho foi limpo.');
+      // ⚠️ USUÁRIO CANCELOU - NÃO FAZER NADA COM ESTOQUE/CARRINHO
+      console.log('⚠️ Usuário cancelou o envio pelo WhatsApp');
+      alert('⚠️ Envio cancelado.\n\nO carrinho permanece intacto.\n\nContinue comprando!');
+      
+      // Apenas reativa o botão, mantém tudo como estava
+      btnWhats.textContent = originalText;
+      btnWhats.disabled = false;
     }
 
   } catch (error) {
     console.error('❌ Erro:', error);
     alert('❌ Erro ao processar pedido. Tente novamente.\n\nErro: ' + error.message);
   } finally {
-    // Reativar botão
+    // ✅ SEMPRE: Reativar botão (com timeout de segurança)
     setTimeout(() => {
-      btnWhats.textContent = originalText;
-      btnWhats.disabled = false;
+      if (btnWhats.disabled) {
+        btnWhats.textContent = originalText;
+        btnWhats.disabled = false;
+      }
     }, 2000);
   }
 }
