@@ -1765,7 +1765,7 @@ async function enviarWhats() {
 
     // ✅ 5º PASSO: CRIAR URL DO WHATSAPP
     const mensagemCodificada = encodeURIComponent(msg);
-    const urlWhatsApp = `https://api.whatsapp.com/send?phone=${numeroWhatsApp}&text=${mensagemCodificada}`;
+    const urlWhatsApp = `whatsapp://send?phone=${numeroWhatsApp}&text=${mensagemCodificada}`;
     
     console.log('🔗 URL WhatsApp:', urlWhatsApp);
     console.log('📱 Número:', numeroWhatsApp);
