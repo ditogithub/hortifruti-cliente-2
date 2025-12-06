@@ -3784,12 +3784,23 @@ document.getElementById('btnCopyPayload').addEventListener('click', async () => 
     
     const btn = document.getElementById('btnCopyPayload');
     const originalText = btn.textContent;
+    const originalBackground = btn.style.background || 'var(--blue)'; // Salvar cor original
+    const originalColor = btn.style.color || '#fff'; // Salvar cor do texto original
+    
     btn.textContent = '✅ Copiado!';
     btn.style.background = '#27ae60';
+    btn.style.color = '#fff';
     
+    // ✅ CORREÇÃO: Restaurar cor original após 2 segundos
     setTimeout(() => {
       btn.textContent = originalText;
-      btn.style.background = '';
+      btn.style.background = originalBackground;
+      btn.style.color = originalColor;
+      
+      // Se a cor original não foi salva, usar o padrão
+      if (!originalBackground || originalBackground === '') {
+        btn.style.background = 'var(--blue)'; // Cor padrão do botão PIX
+      }
     }, 2000);
     
   } catch (error) {
