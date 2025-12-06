@@ -1765,9 +1765,20 @@ async function enviarWhats() {
 
     // ✅ 5º PASSO: CRIAR URL DO WHATSAPP
     const mensagemCodificada = encodeURIComponent(msg);
-    const urlWhatsApp = `whatsapp://send?phone=${numeroWhatsApp}&text=${mensagemCodificada}`;
     
-    console.log('🔗 URL WhatsApp:', urlWhatsApp);
+    // ✅ MÉTODO MULTICAMADA PARA CELULAR
+    // Tentar diferentes URLs para evitar o banner do Chrome
+    
+    // Método 1: whatsapp:// (esquema nativo - funciona direto no app)
+    const urlNative = `whatsapp://send?phone=${numeroWhatsApp}&text=${mensagemCodificada}`;
+    
+    // Método 2: api.whatsapp.com (URL oficial - mais confiável)
+    const urlAPI = `https://api.whatsapp.com/send?phone=${numeroWhatsApp}&text=${mensagemCodificada}`;
+    
+    // Método 3: wa.me (alternativa)
+    const urlWaMe = `https://wa.me/${numeroWhatsApp}?text=${mensagemCodificada}`;
+    
+    console.log('🔗 URLs WhatsApp geradas:', { urlNative, urlAPI, urlWaMe });
     console.log('📱 Número:', numeroWhatsApp);
 
     // ✅ 6º PASSO: LIMPAR CARRINHO
@@ -1787,69 +1798,152 @@ async function enviarWhats() {
     if (confirmacao) {
       console.log('🌐 Abrindo WhatsApp nativo...');
       
-      // MÉTODO OTIMIZADO PARA CELULAR
-      try {
-        // Método 1: URL padrão do WhatsApp (funciona na maioria dos dispositivos)
-        const tempLink = document.createElement('a');
-        tempLink.href = urlWhatsApp;
-        tempLink.target = '_blank';
-        tempLink.rel = 'noopener noreferrer';
-        tempLink.style.display = 'none';
-        document.body.appendChild(tempLink);
-        tempLink.click();
-        document.body.removeChild(tempLink);
+      // Função para mostrar instruções de fallback
+      function mostrarInstrucoesFallback() {
+        // Copiar mensagem completa para área de transferência
+        const mensagemParaCopiar = msg; // Já temos a mensagem montada
         
-        console.log('✅ Link do WhatsApp acionado');
-        
-        // Aguardar e verificar se abriu
-        setTimeout(() => {
-          const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-          
-          if (isMobile) {
-            // Para dispositivos móveis, dar instruções se não abriu
-            const confirmarAbertura = confirm(
-              '📱 ABRINDO WHATSAPP\n\n' +
-              '1. Se o WhatsApp não abriu automaticamente:\n' +
-              '2. Volte para esta página\n' +
-              '3. Copie o número abaixo\n' +
-              '4. Abra o WhatsApp manualmente\n\n' +
-              'Número: ' + numeroWhatsApp + '\n\n' +
-              '✅ A mensagem já está pronta, basta colar!\n\n' +
-              'Clique OK para copiar o número automaticamente.'
-            );
-            
-            if (confirmarAbertura) {
-              // Copiar número para área de transferência
-              if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(numeroWhatsApp)
-                  .then(() => alert('✅ Número copiado! Agora abra o WhatsApp e cole.'))
-                  .catch(() => alert('📱 Número: ' + numeroWhatsApp));
-              } else {
-                alert('📱 Número para copiar: ' + numeroWhatsApp);
-              }
-            }
-          }
-        }, 1500);
-        
-      } catch (error) {
-        console.log('⚠️ Erro no método principal:', error);
-        
-        // Fallback: tentar window.open
-        try {
-          window.open(urlWhatsApp, '_blank');
-        } catch (e) {
-          console.log('⚠️ Fallback também falhou:', e);
+        // Tentar copiar para área de transferência
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(mensagemParaCopiar)
+            .then(() => {
+              alert(
+                '📱 INSTRUÇÕES PARA ENVIAR:\n\n' +
+                '1. Abra o WhatsApp MANUALMENTE\n' +
+                '2. Vá para: ' + numeroWhatsApp + '\n' +
+                '3. COLE a mensagem (já foi copiada!)\n' +
+                '4. Envie normalmente\n\n' +
+                '✅ Mensagem copiada para área de transferência!'
+              );
+            })
+            .catch(() => {
+              alert(
+                '📱 INSTRUÇÕES PARA ENVIAR:\n\n' +
+                '1. Abra o WhatsApp MANUALMENTE\n' +
+                '2. Vá para: ' + numeroWhatsApp + '\n' +
+                '3. Copie a mensagem abaixo:\n\n' +
+                mensagemParaCopiar.substring(0, 200) + '...\n\n' +
+                '4. Cole e envie'
+              );
+            });
+        } else {
+          alert(
+            '📱 INSTRUÇÕES PARA ENVIAR:\n\n' +
+            '1. Abra o WhatsApp MANUALMENTE\n' +
+            '2. Vá para: ' + numeroWhatsApp + '\n' +
+            '3. Copie a mensagem abaixo:\n\n' +
+            mensagemParaCopiar.substring(0, 200) + '...\n\n' +
+            '4. Cole e envie'
+          );
         }
       }
       
-      // Feedback final
+      // Detectar dispositivo
+      const isAndroid = /android/i.test(navigator.userAgent);
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isMobile = isAndroid || isIOS;
+      
+      // ESTRATÉGIA DE ABERTURA
+      if (isMobile) {
+        // Para celular: tentar múltiplos métodos
+        let tentativaAtual = 0;
+        const maxTentativas = 3;
+        
+        function tentarAbrirWhatsApp() {
+          tentativaAtual++;
+          
+          if (tentativaAtual > maxTentativas) {
+            // Todos os métodos falharam
+            mostrarInstrucoesFallback();
+            return;
+          }
+          
+          let urlUsar = urlAPI; // Começa com API
+          
+          if (isAndroid && tentativaAtual === 1) {
+            // Android: tenta esquema nativo primeiro
+            urlUsar = urlNative;
+          } else if (isIOS && tentativaAtual === 1) {
+            // iOS: usa URL padrão
+            urlUsar = urlAPI;
+          } else if (tentativaAtual === 2) {
+            // Segunda tentativa: tenta wa.me
+            urlUsar = urlWaMe;
+          } else if (tentativaAtual === 3) {
+            // Terceira tentativa: tenta iframe
+            urlUsar = urlAPI;
+          }
+          
+          console.log(`Tentativa ${tentativaAtual}: ${urlUsar.substring(0, 60)}...`);
+          
+          // TÉCNICA: Usar iframe invisível
+          try {
+            const iframe = document.createElement('iframe');
+            iframe.style.cssText = 'position:absolute;width:1px;height:1px;border:0;opacity:0;';
+            iframe.src = urlUsar;
+            document.body.appendChild(iframe);
+            
+            // Remove o iframe após 0.5 segundo
+            setTimeout(() => {
+              if (iframe && iframe.parentNode) {
+                iframe.parentNode.removeChild(iframe);
+              }
+              
+              // Se ainda não na última tentativa, tenta o próximo método
+              if (tentativaAtual < maxTentativas) {
+                setTimeout(() => {
+                  tentarAbrirWhatsApp();
+                }, 300);
+              }
+            }, 500);
+            
+          } catch (error) {
+            console.log('Erro com iframe:', error);
+            // Tenta próximo método
+            if (tentativaAtual < maxTentativas) {
+              setTimeout(() => {
+                tentarAbrirWhatsApp();
+              }, 300);
+            }
+          }
+        }
+        
+        // Iniciar processo
+        tentarAbrirWhatsApp();
+        
+        // Após 3 segundos, verificar e dar instruções
+        setTimeout(() => {
+          const abriuWhatsApp = confirm(
+            '📱 WhatsApp foi aberto?\n\n' +
+            'Se SIM, clique em "Cancelar" e envie a mensagem.\n\n' +
+            'Se NÃO abriu, clique em "OK" para ver instruções.'
+          );
+          
+          if (abriuWhatsApp) {
+            // Usuário disse que NÃO abriu
+            mostrarInstrucoesFallback();
+          }
+          // Se SIM abriu, não faz nada - o usuário já está no WhatsApp
+        }, 3000);
+        
+      } else {
+        // Para desktop: usar método simples
+        try {
+          window.open(urlAPI, '_blank', 'noopener,noreferrer');
+        } catch (error) {
+          console.log('Erro ao abrir WhatsApp Web:', error);
+          window.location.href = urlAPI;
+        }
+      }
+      
+      // Feedback final (sempre aparece)
       setTimeout(() => {
-        alert('✅ Pedido finalizado!\n\n' +
+        alert('✅ Pedido processado com sucesso!\n\n' +
               '• Carrinho limpo\n' +
               '• Estoque atualizado\n' +
               '• Pronto para enviar no WhatsApp\n\n' +
               'Agradecemos pelo pedido! 🛒');
-      }, 2000);
+      }, 1000);
       
     } else {
       alert('⚠️ Pedido processado mas não enviado.\nO carrinho foi limpo.');
