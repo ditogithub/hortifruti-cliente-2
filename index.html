@@ -373,6 +373,64 @@ header {
     font-size: 13px !important;
   }
 }
+
+/* ========================= */
+/* ESTILOS PARA LOADING (OTIMIZAÇÕES) */
+/* ========================= */
+
+/* Loading animation */
+.loading-indicator {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Skeleton loading */
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Skeleton loading para produtos */
+.product-skeleton {
+  width: 180px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 8px;
+  margin: 5px;
+}
+
+.product-skeleton .img-skeleton {
+  width: 100%;
+  height: 120px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+  border-radius: 6px;
+}
+
+@media (max-width: 600px) {
+  .product-skeleton {
+    width: 90%;
+    margin: 10px auto;
+  }
+}
 </style>
 
 </head>
@@ -509,6 +567,391 @@ function melhorarMobileAdmin() {
     btn.style.touchAction = 'manipulation';
   });
 }
+
+// =========================
+// OTIMIZAÇÕES DE DESEMPENHO - CARREGAMENTO MAIS RÁPIDO
+// =========================
+
+// Cache para produtos (evita múltiplas requisições desnecessárias)
+let produtosCache = null;
+let ultimoCarregamentoCache = null;
+const CACHE_TIMEOUT = 30000; // 30 segundos
+
+// =========================
+// FUNÇÃO GLOBAL PARA FORÇAR ATUALIZAÇÃO DO CATÁLOGO
+// =========================
+window.forcarAtualizacaoCatalogo = function() {
+  console.log('🔄 Forçando atualização do catálogo...');
+  
+  // Invalidar cache
+  produtosCache = null;
+  ultimoCarregamentoCache = null;
+  
+  // Recarregar produtos
+  if (typeof carregarProdutos === 'function') {
+    carregarProdutos();
+  }
+  
+  // Se estiver no modo admin, recarregar também
+  if (document.querySelector('.modal-backdrop')) {
+    if (typeof renderAdminProductsContent === 'function') {
+      renderAdminProductsContent();
+    }
+  }
+  
+  return '✅ Catálogo atualizado!';
+};
+
+// Função otimizada para carregar produtos
+async function carregarProdutosOtimizado() {
+  console.log('🔄 Carregando produtos (versão otimizada)...');
+  
+  // Mostrar loading imediato
+  const container = document.getElementById('productsList');
+  if (container) {
+    container.innerHTML = '<div style="text-align:center; padding:20px; color:#666;">Carregando produtos...</div>';
+  }
+  
+  // Verificar cache válido
+  const agora = Date.now();
+  if (produtosCache && ultimoCarregamentoCache && 
+      (agora - ultimoCarregamentoCache) < CACHE_TIMEOUT) {
+    console.log('✅ Usando cache de produtos');
+    renderizarProdutosDoCache();
+    return;
+  }
+  
+  try {
+    // Fazer login automático se não estiver autenticado (não bloquear)
+    if (!auth.currentUser) {
+      auth.signInAnonymously().catch(() => {
+        console.log('⚠️ Autenticação em segundo plano');
+      });
+    }
+    
+    // Verificar estoque pausado e vendas liberadas em paralelo
+    const [estoqueSnap, cfgSnap] = await Promise.all([
+      db.collection('config').doc('estoque').get(),
+      db.collection('config').doc('controle').get()
+    ]);
+    
+    const estoquePausado = estoqueSnap.exists ? estoqueSnap.data().pausado : false;
+    const vendasLiberadas = cfgSnap.exists ? cfgSnap.data().vendasLiberadas : true;
+    
+    if (estoquePausado) {
+      container.innerHTML = `
+        <div class="catalog-block" style="display:flex;">
+          <h2>⏸️ Estoque em Manutenção</h2>
+          <p>Estamos atualizando nosso estoque. Volte em breve!</p>
+        </div>
+      `;
+      return;
+    }
+    
+    if (!vendasLiberadas) {
+      container.innerHTML = `
+        <div class="catalog-block">
+          <h2>⚠️ Vendas temporariamente indisponíveis</h2>
+          <p>Retornaremos em breve!</p>
+        </div>
+      `;
+      return;
+    }
+    
+    // Carregar produtos com limite e cache
+    console.time('🔥 Carregamento produtos');
+    const snap = await db.collection('produtos')
+      .where('active', '==', true)
+      .limit(50) // Limite para performance
+      .get();
+    
+    console.timeEnd('🔥 Carregamento produtos');
+    
+    // Atualizar cache
+    produtosCache = [];
+    snap.forEach(doc => {
+      const p = doc.data();
+      p._id = doc.id;
+      produtosCache.push(p);
+    });
+    ultimoCarregamentoCache = Date.now();
+    
+    console.log(`✅ ${produtosCache.length} produtos carregados no cache`);
+    
+    // Renderizar produtos
+    renderizarProdutosDoCache();
+    
+  } catch (error) {
+    console.error('❌ Erro ao carregar produtos:', error);
+    if (container) {
+      container.innerHTML = `
+        <div class="catalog-block">
+          <h2>⚠️ Erro ao carregar produtos</h2>
+          <p>Tente recarregar a página</p>
+          <button onclick="carregarProdutosOtimizado()" style="margin-top:10px; padding:8px 16px; background:#3498db; color:white; border:none; border-radius:5px;">
+            Tentar novamente
+          </button>
+        </div>
+      `;
+    }
+  }
+}
+
+// Função para renderizar produtos do cache (mais rápida)
+function renderizarProdutosDoCache() {
+  console.log('🎨 Renderizando produtos do cache...');
+  
+  if (!produtosCache || produtosCache.length === 0) {
+    const container = document.getElementById('productsList');
+    container.innerHTML = '<div class="small">Nenhum produto disponível no momento.</div>';
+    return;
+  }
+  
+  const container = document.getElementById('productsList');
+  const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+  
+  // Limpar container
+  container.innerHTML = '';
+  
+  let produtosFiltrados = 0;
+  
+  produtosCache.forEach(p => {
+    if (!p.name.toLowerCase().includes(searchTerm)) return;
+    produtosFiltrados++;
+    
+    const priceUnit = p.priceUnit != null ? Number(p.priceUnit) : null;
+    const priceKg = p.priceKg != null ? Number(p.priceKg) : null;
+    const precoTexto = priceUnit ?? priceKg ?? 0;
+    
+    // Encontrar quantidade no carrinho
+    let cartQty = 0;
+    const found = cart.find(item => item.id === p._id);
+    if (found) cartQty = found.qty;
+    
+    const oldPrice = p.oldPrice ? Number(p.oldPrice) : null;
+    const percent = oldPrice ? `-${((1 - (precoTexto / oldPrice)) * 100).toFixed(0)}%` : null;
+    
+    const card = document.createElement('div');
+    card.className = 'product';
+    card.setAttribute('data-id', p._id);
+    
+    // Template mantendo a estrutura original
+    card.innerHTML = `
+      <img src="${escapeHtml(p.img || 'https://via.placeholder.com/400x300?text=Sem+imagem')}" 
+           class="product-img"
+           loading="lazy">
+      <div class="info-area">
+        <div class="price-box">
+          <div class="current-price">
+            <strong>${formatBRL(precoTexto)}</strong>
+          </div>
+          ${oldPrice ? `<div class="old-price">${formatBRL(oldPrice)}</div>` : ""}
+          ${percent ? `<div class="percent">${percent}</div>` : ""}
+        </div>
+        <div class="name">${escapeHtml(p.name)}</div>
+        <div class="desc">${escapeHtml(p.desc || '')}</div>
+      </div>
+      <div class="controls">
+        <select id="mode_${p._id}">
+          ${priceUnit ? '<option value="unit">Unidade</option>' : ''}
+          ${priceKg ? '<option value="kg">Kg</option>' : ''}
+        </select>
+        <input id="qty_${p._id}" type="number" value="1" min="0.1" step="0.1">
+        ${
+          cartEnabled
+          ? `<button class="btn btn-add" id="add_${p._id}">+ Carrinho</button>`
+          : `<button class="btn btn-disabled" disabled>⏸️ Carrinho Desativado</button>`
+        }
+        ${cartQty > 0 ? `<button class="btn btn-remove" id="rem_${p._id}">🗑️</button>` : ""}
+      </div>
+      <div class="cart-status">
+        ${cartQty > 0 ? `Já no carrinho: <strong>${cartQty}</strong>` : ""}
+      </div>
+    `;
+    
+    container.appendChild(card);
+    
+    // ADICIONAR EVENT LISTENERS COMO NA FUNÇÃO ORIGINAL
+    const sel = document.getElementById(`mode_${p._id}`);
+    const addBtn = document.getElementById(`add_${p._id}`);
+    const qtyInput = document.getElementById(`qty_${p._id}`);
+    const remBtn = document.getElementById(`rem_${p._id}`);
+    
+    if (!sel || sel.options.length === 0) {
+      if (addBtn) {
+        addBtn.disabled = true;
+        addBtn.textContent = 'Sem preço';
+        addBtn.style.opacity = 0.6;
+      }
+    }
+    
+    if (addBtn && cartEnabled) {
+      // Adicionar event listener para adicionar ao carrinho
+      addBtn.addEventListener('click', async function() {
+        if (addBtn.disabled) return;
+        
+        const selectedMode = sel ? sel.value : (priceUnit != null ? 'unit' : 'kg');
+        const qty = Number(qtyInput ? qtyInput.value : 1) || 1;
+        const unitPrice = (selectedMode === 'kg') ? priceKg : priceUnit;
+        
+        if (unitPrice == null) {
+          alert('Preço inválido.');
+          return;
+        }
+        
+        try {
+          const snapData = (await db.collection('produtos').doc(p._id).get()).data();
+          const stock = snapData.stock ?? 0;
+          
+          if (qty > stock) {
+            alert(`Só temos ${stock} unidades disponíveis.`);
+            return;
+          }
+          
+          addToCart({
+            id: p._id,
+            name: p.name || 'Produto',
+            img: p.img,
+            mode: selectedMode,
+            qty,
+            unitPrice: Number(unitPrice)
+          });
+          
+          saveCart();
+          
+          // Efeito visual de confirmação
+          addBtn.classList.add('flash');
+          setTimeout(() => addBtn.classList.remove('flash'), 400);
+          
+          // Atualizar apenas este card
+          atualizarCardDoProduto(p._id);
+          
+        } catch (error) {
+          alert('Erro ao verificar estoque: ' + error.message);
+        }
+      });
+    }
+    
+    if (remBtn) {
+      // Adicionar event listener para remover do carrinho
+      remBtn.addEventListener('click', function() {
+        const item = cart.find(c => c.id === p._id);
+        if (!item) return;
+        
+        const qtdRemover = prompt(`Você tem ${item.qty} no carrinho.\nQuantos deseja remover?`);
+        if (!qtdRemover) return;
+        
+        const n = Number(qtdRemover);
+        if (isNaN(n) || n <= 0) {
+          alert("Quantidade inválida.");
+          return;
+        }
+        
+        if (n >= item.qty) {
+          cart = cart.filter(c => c.id !== p._id);
+        } else {
+          item.qty -= n;
+        }
+        
+        saveCart();
+        renderizarProdutosDoCache(); // Recarregar produtos para atualizar todos
+        renderCart(); // Atualizar carrinho visível
+      });
+    }
+  });
+  
+  // Feedback visual
+  if (produtosFiltrados === 0 && searchTerm) {
+    container.innerHTML = `<div style="text-align:center; padding:20px; color:#666;">Nenhum produto encontrado para "${searchTerm}"</div>`;
+  }
+  
+  console.log(`✅ ${produtosFiltrados} produtos renderizados`);
+}
+
+// Função para atualizar apenas um card (mais eficiente)
+function atualizarCardDoProduto(productId) {
+  const productElement = document.querySelector(`.product[data-id="${productId}"]`);
+  if (!productElement) return;
+  
+  // Encontrar quantidade atual no carrinho
+  let cartQty = 0;
+  const found = cart.find(item => item.id === productId);
+  if (found) cartQty = found.qty;
+  
+  // Atualizar apenas a parte necessária
+  const cartStatus = productElement.querySelector('.cart-status');
+  
+  if (cartStatus) {
+    cartStatus.innerHTML = cartQty > 0 ? 
+      `Já no carrinho: <strong>${cartQty}</strong>` : '';
+  }
+  
+  // Adicionar/remover botão de remover
+  const removeBtn = productElement.querySelector('.btn-remove');
+  
+  if (cartQty > 0 && !removeBtn) {
+    const controlsDiv = productElement.querySelector('.controls');
+    if (controlsDiv) {
+      const newRemoveBtn = document.createElement('button');
+      newRemoveBtn.className = 'btn btn-remove';
+      newRemoveBtn.id = `rem_${productId}`;
+      newRemoveBtn.textContent = '🗑️';
+      
+      // Adicionar event listener ao novo botão
+      newRemoveBtn.addEventListener('click', function() {
+        const item = cart.find(c => c.id === productId);
+        if (!item) return;
+        
+        const qtdRemover = prompt(`Você tem ${item.qty} no carrinho.\nQuantos deseja remover?`);
+        if (!qtdRemover) return;
+        
+        const n = Number(qtdRemover);
+        if (isNaN(n) || n <= 0) {
+          alert("Quantidade inválida.");
+          return;
+        }
+        
+        if (n >= item.qty) {
+          cart = cart.filter(c => c.id !== productId);
+        } else {
+          item.qty -= n;
+        }
+        
+        saveCart();
+        renderizarProdutosDoCache(); // Recarregar produtos para atualizar todos
+        renderCart(); // Atualizar carrinho visível
+      });
+      
+      controlsDiv.appendChild(newRemoveBtn);
+    }
+  } else if (cartQty === 0 && removeBtn) {
+    removeBtn.remove();
+  }
+  
+  // Atualizar contador do carrinho
+  updateCartCount();
+}
+
+// =========================
+// SUBSTITUIR A FUNÇÃO ORIGINAL PELA OTIMIZADA
+// =========================
+
+// Salvar referência à função original
+const carregarProdutosOriginal = window.carregarProdutos;
+
+// Substituir pela versão otimizada
+window.carregarProdutos = carregarProdutosOtimizado;
+
+// =========================
+// FUNÇÃO PARA FORÇAR RECARGA COMPLETA
+// =========================
+
+window.recarregarProdutosCompleto = async function() {
+  console.log('🔄 Forçando recarga completa de produtos...');
+  produtosCache = null;
+  ultimoCarregamentoCache = null;
+  await carregarProdutosOtimizado();
+};
 
 // =========================
 // FUNÇÃO PARA MODAL DE SENHA COM ESTRELINHAS
@@ -831,8 +1274,20 @@ let sellerPhone = '';
 // FUNÇÕES UTILITÁRIAS
 // =========================
 function saveCart() {
-  localStorage.setItem('cart', JSON.stringify(cart));
-  if (typeof carregarProdutos === 'function') carregarProdutos();
+  try {
+    localStorage.setItem('cart', JSON.stringify(cart));
+    console.log('💾 Carrinho salvo:', cart.length, 'itens');
+    
+    // Atualizar contador imediato
+    updateCartCount();
+    
+    // Recarregar produtos se a função estiver disponível
+    if (typeof carregarProdutos === 'function') {
+      setTimeout(() => carregarProdutos(), 100);
+    }
+  } catch (error) {
+    console.error('❌ Erro ao salvar carrinho:', error);
+  }
 }
 function escapeHtml(s){ return String(s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'); }
 function formatBRL(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency', currency:'BRL'}); }
@@ -1064,197 +1519,6 @@ async function atualizarStatusCarrinhoUnificado() {
 }
 
 // =========================
-// CARREGAR PRODUTOS - VERSÃO CORRIGIDA
-// =========================
-async function carregarProdutos() {
-  // Fazer login automático se não estiver autenticado
-  if (!auth.currentUser) {
-    try {
-      await auth.signInAnonymously();
-      console.log('✅ Usuário autenticado anonimamente');
-    } catch (error) {
-      console.log('⚠️ Autenticação não necessária para leitura');
-    }
-  }
-  
-  // Verificar estoque pausado
-  const estoqueSnap = await db.collection('config').doc('estoque').get();
-  const estoquePausado = estoqueSnap.exists ? estoqueSnap.data().pausado : false;
-
-  if (estoquePausado) {
-    const container = document.getElementById('productsList');
-    container.innerHTML = `
-      <div class="catalog-block" style="display:flex;">
-        <h2>⏸️ Estoque em Manutenção</h2>
-        <p>Estamos atualizando nosso estoque. Volte em breve!</p>
-      </div>
-    `;
-    return;
-  }
-
-  // Verificar vendas liberadas
-  const cfgSnap = await db.collection('config').doc('controle').get();
-  const vendasLiberadas = cfgSnap.exists ? cfgSnap.data().vendasLiberadas : true;
-
-  if (!vendasLiberadas) {
-    const container = document.getElementById('productsList');
-    container.innerHTML = `
-      <div class="catalog-block">
-        <h2>⚠️ Vendas temporariamente indisponíveis</h2>
-        <p>Retornaremos em breve!</p>
-      </div>
-    `;
-    return;
-  }
-
-  const snap = await db.collection('produtos').get();
-  const container = document.getElementById('productsList');
-  container.innerHTML = '';
-
-  const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-
-  snap.forEach(doc => {
-    const pRaw = doc.data() || {};
-    const p = Object.assign({}, pRaw);
-    p._id = doc.id;
-
-    if (!p.name.toLowerCase().includes(searchTerm)) return;
-
-    // Normalização do campo active
-    const val = p.active;
-    const isExplicitlyFalse = (val === false || val === 'false' || val === 0 || val === '0');
-    const isExplicitlyTrue  = (val === true  || val === 'true'  || val === 1 || val === '1');
-    const isActive = isExplicitlyTrue || (!isExplicitlyFalse && val !== undefined) || (val === undefined);
-    if (!isActive) return;
-
-    const priceUnit = (p.priceUnit != null && !isNaN(Number(p.priceUnit)) && p.priceUnit !== '') ? Number(p.priceUnit) : null;
-    const priceKg   = (p.priceKg   != null && !isNaN(Number(p.priceKg))   && p.priceKg !== '') ? Number(p.priceKg) : null;
-    const precoTexto = priceUnit ?? priceKg ?? 0;
-
-    const card = document.createElement('div');
-    card.className = 'product';
-
-    const imgSrc = escapeHtml(p.img || 'https://via.placeholder.com/400x300?text=Sem+imagem');
-    const nameTxt = escapeHtml(p.name || 'Produto');
-    const descTxt = escapeHtml(p.desc || '');
-    const priceTxt = formatBRL(precoTexto);
-
-    let cartQty = 0;
-    const found = cart.find(item => item.id === p._id);
-    if (found) cartQty = found.qty;
-
-    const oldPrice = p.oldPrice ? Number(p.oldPrice) : null;
-    const percent = oldPrice ? `-${((1 - (precoTexto / oldPrice)) * 100).toFixed(0)}%` : null;
-
-    card.innerHTML = `
-      <img src="${imgSrc}" class="product-img">
-      <div class="info-area">
-        <div class="price-box">
-          <div class="current-price">
-            <strong>${priceTxt}</strong>
-          </div>
-          ${oldPrice ? `<div class="old-price">${formatBRL(oldPrice)}</div>` : ""}
-          ${percent ? `<div class="percent">${percent}</div>` : ""}
-        </div>
-        <div class="name">${nameTxt}</div>
-        <div class="desc">${descTxt}</div>
-      </div>
-      <div class="controls">
-        <select id="mode_${p._id}">
-          ${priceUnit ? '<option value="unit">Unidade</option>' : ''}
-          ${priceKg ? '<option value="kg">Kg</option>' : ''}
-        </select>
-        <input id="qty_${p._id}" type="number" value="1" min="0.1" step="0.1">
-        ${
-          cartEnabled
-          ? `<button class="btn btn-add" id="add_${p._id}">+ Carrinho</button>`
-          : `<button class="btn btn-disabled" style="background: #95a5a6; color: white; cursor: not-allowed;" disabled>⏸️ Carrinho Desativado</button>`
-        }
-        ${cartQty > 0 ? `<button class="btn btn-remove" id="rem_${p._id}">🗑️</button>` : ""}
-      </div>
-      <div class="cart-status">
-        ${cartQty > 0 ? `Já no carrinho: <strong>${cartQty}</strong>` : ""}
-      </div>
-    `;
-
-    container.appendChild(card);
-
-    const sel = document.getElementById(`mode_${p._id}`);
-    const addBtn = document.getElementById(`add_${p._id}`);
-    const qtyInput = document.getElementById(`qty_${p._id}`);
-    const remBtn = document.getElementById(`rem_${p._id}`);
-
-    if (!sel || sel.options.length === 0) {
-      if (addBtn) {
-        addBtn.disabled = true;
-        addBtn.textContent = 'Sem preço';
-        addBtn.style.opacity = 0.6;
-      }
-    }
-
-    if (addBtn && cartEnabled) {
-      addBtn.addEventListener('click', async () => {
-        if (addBtn.disabled) return;
-
-        const selectedMode = sel ? sel.value : (priceUnit != null ? 'unit' : 'kg');
-        const qty = Number(qtyInput ? qtyInput.value : 1) || 1;
-        const unitPrice = (selectedMode === 'kg') ? priceKg : priceUnit;
-
-        if (unitPrice == null) {
-          alert('Preço inválido.');
-          return;
-        }
-
-        const snapData = (await db.collection('produtos').doc(p._id).get()).data();
-        const stock = snapData.stock ?? 0;
-
-        if (qty > stock) {
-          alert(`Só temos ${stock} unidades disponíveis.`);
-          return;
-        }
-
-        addToCart({
-          id: p._id,
-          name: p.name || 'Produto',
-          img: p.img,
-          mode: selectedMode,
-          qty,
-          unitPrice: Number(unitPrice)
-        });
-
-        saveCart();
-        carregarProdutos();
-      });
-    }
-
-    if (remBtn) {
-      remBtn.addEventListener('click', () => {
-        const item = cart.find(c => c.id === p._id);
-        if (!item) return;
-
-        const qtdRemover = prompt(`Você tem ${item.qty} no carrinho.\nQuantos deseja remover?`);
-        if (!qtdRemover) return;
-
-        const n = Number(qtdRemover);
-        if (isNaN(n) || n <= 0) {
-          alert("Quantidade inválida.");
-          return;
-        }
-
-        if (n >= item.qty) {
-          cart = cart.filter(c => c.id !== p._id);
-        } else {
-          item.qty -= n;
-        }
-
-        saveCart();
-        carregarProdutos();
-      });
-    }
-  });
-}
-
-// =========================
 // FUNÇÕES DO CARRINHO
 // =========================
 async function addToCart(item) {
@@ -1291,12 +1555,29 @@ async function addToCart(item) {
 }
 
 function updateCartCount() {
-  const count = cart.reduce((total, item) => total + item.qty, 0);
-  const badge = document.getElementById('cartCount');
-  if (!badge) return;
-
-  badge.textContent = count;
-  badge.style.display = count > 0 ? "inline-flex" : "none";
+  try {
+    const count = cart.reduce((total, item) => total + (item.qty || 0), 0);
+    const badge = document.getElementById('cartCount');
+    
+    if (!badge) {
+      console.warn('⚠️ Elemento cartCount não encontrado');
+      return;
+    }
+    
+    badge.textContent = count;
+    
+    if (count > 0) {
+      badge.style.display = "inline-flex";
+      badge.style.backgroundColor = "red";
+      badge.style.color = "white";
+    } else {
+      badge.style.display = "none";
+    }
+    
+    console.log('🛒 Contador atualizado:', count, 'itens');
+  } catch (error) {
+    console.error('❌ Erro ao atualizar contador do carrinho:', error);
+  }
 }
 
 function renderCart() {
@@ -1591,7 +1872,6 @@ function askAdminPassword(callback) {
   box.style.padding = '25px';
   box.style.borderRadius = '12px';
   box.style.textAlign = 'center';
-  box.style.boxShadow = '0 10px 30px rgba(0,0,0,0.3)';
   box.style.width = '90%';
   box.style.maxWidth = '400px';
   
@@ -2118,7 +2398,7 @@ closeBtn.style.cssText = `
   text-align: center !important;
 `;
 
-// EVENTO DIRETO NO BOTÃO (ANTES de adicionar ao DOM)
+// EVENTO DIRETO NO BOTÃO (ANTES de adicionar ao DOM) COM INVALIDAÇÃO DE CACHE
 closeBtn.onclick = function(event) {
   if (event) {
     event.preventDefault();
@@ -2139,6 +2419,10 @@ closeBtn.onclick = function(event) {
     clearTimeout(adminSessaoTimeout);
     adminSessaoTimeout = null;
   }
+  
+  // 🔥 INVALIDAR O CACHE FORÇANDO RECARGA
+  produtosCache = null;
+  ultimoCarregamentoCache = null;
   
   // Recarregar produtos
   if (typeof carregarProdutos === 'function') {
@@ -2261,7 +2545,7 @@ header.querySelector('div').appendChild(closeBtn);
   
   toolbar.appendChild(estoqueRapidoBtn);
 
- // BOTÃO CONFIGURAR PIX (COM VALIDAÇÃO DA CHAVE)
+ // BOTÃO CONFIGURAR PIX (COM VALIDAÇÃO DA CHAVE COM 3 TENTATIVAS)
 const pixConfigBtn = document.createElement('button');
 pixConfigBtn.className = 'btn';
 pixConfigBtn.style.cssText = 'background: #9b59b6; color: #fff; margin: 0; flex: 1; min-width: 200px;';
@@ -2300,195 +2584,388 @@ pixConfigBtn.addEventListener('click', async () => {
         const pixAtual = await db.collection('config').doc('pix').get();
         const dadosAtuais = pixAtual.exists ? pixAtual.data() : {};
         
-        // 🔧 FUNÇÃO PARA VALIDAR CHAVE PIX COM MENSAGEM CLARA
-        function validarChavePIX(chave) {
-            // Remove espaços
-            chave = chave.trim();
+       
+    // 🔧 FUNÇÃO PARA VALIDAR CHAVE PIX COM MENSAGEM CLARA E 3 TENTATIVAS
+function validarChavePIX(chave) {
+    chave = chave.trim();
+    
+    // Se estiver vazio
+    if (!chave) {
+        return {
+            valido: false,
+            chaveFormatada: '',
+            mensagem: '❌ A chave PIX não pode estar vazia!'
+        };
+    }
+    
+    // Detectar tipo de chave
+    const tipo = detectarTipoChaveAuto(chave);
+    
+    // Validações específicas por tipo
+    switch (tipo) {
+        case 'celular':
+            // CORREÇÃO: Aceitar 86176915 e formatar para +5581986176915 (com o 9)
+            // Remover todos não-numéricos
+            const apenasNumerosCel = chave.replace(/\D/g, '');
             
-            // Caso 1: Já está no formato correto (+55XXXXXXXXXXX)
-            if (chave.startsWith('+55') && chave.length === 14) {
-                const apenasNumeros = chave.replace(/\D/g, '');
-                if (apenasNumeros.length === 13) {
+            // Verificar se tem 8 ou 9 dígitos (sem DDD) ou 10-11 dígitos (com DDD)
+            if (apenasNumerosCel.length >= 8 && apenasNumerosCel.length <= 11) {
+                // CORREÇÃO: Se tiver 8 dígitos (sem o 9), adicionar 9
+                if (apenasNumerosCel.length === 8) {
+                    // Adicionar DDD 81 e o dígito 9
+                    const numeroCompleto = '5581' + '9' + apenasNumerosCel;
+                    const chaveFormatada = '+' + numeroCompleto;
+                    
                     return {
                         valido: true,
-                        chaveFormatada: chave,
-                        mensagem: '✅ Formato correto!'
+                        chaveFormatada: chaveFormatada,
+                        mensagem: `✅ Celular corrigido!\n\n` +
+                                 `De: ${chave}\n` +
+                                 `Para: ${chaveFormatada}`
+                    };
+                }
+                
+                // CORREÇÃO: Se tiver 9 dígitos (já tem o 9)
+                if (apenasNumerosCel.length === 9) {
+                    // Adicionar DDD 81
+                    const numeroCompleto = '5581' + apenasNumerosCel;
+                    const chaveFormatada = '+' + numeroCompleto;
+                    
+                    return {
+                        valido: true,
+                        chaveFormatada: chaveFormatada,
+                        mensagem: `✅ Celular corrigido!\n\n` +
+                                 `De: ${chave}\n` +
+                                 `Para: ${chaveFormatada}`
+                    };
+                }
+                
+                // Se tiver 10-11 dígitos (DDD + número com/sem 9)
+                if (apenasNumerosCel.length >= 10 && apenasNumerosCel.length <= 11) {
+                    // Verificar se já tem código do país (55)
+                    let numeroFinal = apenasNumerosCel;
+                    
+                    // Adicionar 55 se não tiver
+                    if (!apenasNumerosCel.startsWith('55')) {
+                        numeroFinal = '55' + apenasNumerosCel;
+                    }
+                    
+                    // Verificar se tem 9 dígitos após DDD (formato correto: 55DDD9XXXXXXXX)
+                    const ddd = numeroFinal.substring(2, 4);
+                    const resto = numeroFinal.substring(4);
+                    
+                    // CORREÇÃO: Adicionar o dígito 9 se não tiver
+                    if (resto.length === 8) {
+                        numeroFinal = '55' + ddd + '9' + resto;
+                    }
+                    
+                    const chaveFormatada = '+' + numeroFinal;
+                    
+                    return {
+                        valido: true,
+                        chaveFormatada: chaveFormatada,
+                        mensagem: `✅ Celular válido!\n\n` +
+                                 `Chave: ${chaveFormatada}`
                     };
                 }
             }
             
-            // Caso 2: Tem 13 dígitos mas sem o +55
-            const apenasNumeros = chave.replace(/\D/g, '');
-            
-            if (apenasNumeros.length === 11) {
-                return {
-                    valido: false,
-                    chaveFormatada: '',
-                    mensagem: `❌ ERRO: A chave tem apenas ${apenasNumeros.length} dígitos!\n\n` +
-                             `Você digitou: ${chave}\n\n` +
-                             `📱 Formato correto para CELULAR:\n` +
-                             `• Digite: +5581986176915\n` +
-                             `• Começa com: +55\n` +
-                             `• Total: 14 caracteres (com +)\n\n` +
-                             `⚠️ O "+55" é OBRIGATÓRIO!`
-                };
-            }
-            
-            if (apenasNumeros.length === 12) {
-                return {
-                    valido: false,
-                    chaveFormatada: '',
-                    mensagem : `❌ ERRO: A chave tem ${apenasNumeros.length} dígitos!\n\n` +
-                             `Você digitou: ${chave}\n\n` +
-                             `📱 Formato correto para CELULAR:\n` +
-                             `• Digite: +5581986176915\n` +
-                             `• Começa com: +55\n` +
-                             `• Total: 14 caracteres (com +)\n\n` +
-                             `⚠️ Faltam dígitos! Verifique o número completo.`
-                };
-            }
-            
-            if (apenasNumeros.length === 13) {
-                // Tem 13 dígitos, só falta o +55
-                const chaveCorrigida = `+55${apenasNumeros}`;
-                return {
-                    valido: true,
-                    chaveFormatada: chaveCorrigida,
-                    mensagem: `⚠️ ATENÇÃO: Formatando automaticamente!\n\n` +
-                             `Você digitou: ${chave}\n` +
-                             `Será salvo como: ${chaveCorrigida}\n\n` +
-                             `✅ Pronto! A chave foi corrigida.`
-                };
-            }
-            
-            if (apenasNumeros.length === 14 && !chave.startsWith('+55')) {
-                // Tem 14 dígitos mas sem o +55
-                const chaveCorrigida = `+55${apenasNumeros}`;
-                return {
-                    valido: false,
-                    chaveFormatada: '',
-                    mensagem: `❌ ERRO: Formato inválido!\n\n` +
-                             `Você digitou: ${chave}\n\n` +
-                             `📱 Formato correto para CELULAR:\n` +
-                             `• Digite: +5581986176915\n` +
-                             `• Começa com: +55\n` +
-                             `• Total: 14 caracteres (com +)\n\n` +
-                             `⚠️ O número está muito longo. Verifique se não digitou o +55 duas vezes.`
-                };
-            }
-            
-            // Caso genérico
             return {
                 valido: false,
                 chaveFormatada: '',
-                mensagem: `❌ FORMATO INVÁLIDO!\n\n` +
-                         `Você digitou: ${chave}\n\n` +
-                         `📱 EXEMPLOS CORRETOS:\n` +
-                         `• Celular: +5581986176915\n` +
-                         `• CPF: 123.456.789-09\n` +
-                         `• Email: email@exemplo.com\n` +
-                         `• Chave aleatória: 123e4567-e89b-12d3-a456-426614174000\n\n` +
-                         `🔍 Dica: Use o mesmo número que está no WhatsApp!`
+                mensagem: `❌ Celular inválido!\n\n` +
+                         `Formato correto:\n` +
+                         `• 86176915 (8 dígitos) → +5581986176915\n` +
+                         `• 861769155 (9 dígitos com 9) → +5581986176915\n` +
+                         `• 81986176915 (11 dígitos com DDD) → +5581986176915`
             };
-        }
-        
-        // 🔧 FUNÇÃO PARA PROMPT COM VALIDAÇÃO
-        function promptComValidacao(mensagem, valorPadrao, validarFuncao) {
-            let tentativas = 0;
-            const maxTentativas = 3;
             
-            while (tentativas < maxTentativas) {
-                const entrada = prompt(
-                    `${mensagem}\n\n` +
-                    `Tentativa ${tentativas + 1} de ${maxTentativas}`,
-                    valorPadrao
+        case 'cpf':
+            // Validar CPF: 11 dígitos (com ou sem formatação)
+            const cpfNumeros = chave.replace(/\D/g, '');
+            
+            if (cpfNumeros.length === 11) {
+                // Formatar CPF: 123.456.789-09 (opcional)
+                const cpfFormatado = cpfNumeros.replace(
+                    /(\d{3})(\d{3})(\d{3})(\d{2})/,
+                    '$1.$2.$3-$4'
                 );
                 
-                if (entrada === null) {
-                    return null; // Usuário cancelou
-                }
-                
-                const resultadoValidacao = validarFuncao(entrada);
-                
-                if (resultadoValidacao.valido) {
-                    // Se precisou corrigir, mostrar mensagem
-                    if (resultadoValidacao.mensagem.includes('Formatando automaticamente')) {
-                        const confirmar = confirm(
-                            `${resultadoValidacao.mensagem}\n\n` +
-                            `Deseja continuar com essa correção?`
-                        );
-                        
-                        if (confirmar) {
-                            return resultadoValidacao.chaveFormatada;
-                        } else {
-                            tentativas++;
-                            continue;
-                        }
-                    }
-                    
-                    return resultadoValidacao.chaveFormatada || entrada;
-                } else {
-                    // Mostrar erro específico
-                    alert(resultadoValidacao.mensagem);
-                    tentativas++;
-                    
-                    if (tentativas >= maxTentativas) {
-                        alert(`❌ Número máximo de tentativas atingido!\n\nOperação cancelada.`);
-                        return null;
-                    }
-                }
+                // Salvar sem formatação (padrão PIX)
+                return {
+                    valido: true,
+                    chaveFormatada: cpfNumeros,
+                    mensagem: `✅ CPF válido! (11 dígitos)\n\n` +
+                             `Formatado: ${cpfFormatado}\n` +
+                             `Será salvo como: ${cpfNumeros}`
+                };
+            } else {
+                return {
+                    valido: false,
+                    chaveFormatada: '',
+                    mensagem: `❌ CPF inválido!\n\n` +
+                             `Deve ter exatamente 11 dígitos.\n` +
+                             `Digitado: ${cpfNumeros.length} dígitos\n\n` +
+                             `Exemplos:\n` +
+                             `• 12345678909 (sem formatação)\n` +
+                             `• 123.456.789-09 (com formatação)`
+                };
             }
             
-            return null;
+        case 'cnpj':
+            // Validar CNPJ: 14 dígitos (com ou sem formatação)
+            const cnpjNumeros = chave.replace(/\D/g, '');
+            
+            if (cnpjNumeros.length === 14) {
+                // Formatar CNPJ: 12.345.678/0001-90 (opcional)
+                const cnpjFormatado = cnpjNumeros.replace(
+                    /(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,
+                    '$1.$2.$3/$4-$5'
+                );
+                
+                // CORREÇÃO: Salvar sem formatação (padrão PIX)
+                return {
+                    valido: true,
+                    chaveFormatada: cnpjNumeros,
+                    mensagem: `✅ CNPJ válido! (14 dígitos)\n\n` +
+                             `Formatado: ${cnpjFormatado}\n` +
+                             `Será salvo como: ${cnpjNumeros}`
+                };
+            } else {
+                return {
+                    valido: false,
+                    chaveFormatada: '',
+                    mensagem: `❌ CNPJ inválido!\n\n` +
+                             `Deve ter exatamente 14 dígitos.\n` +
+                             `Digitado: ${cnpjNumeros.length} dígitos\n\n` +
+                             `Exemplos:\n` +
+                             `• 12345678000195 (sem formatação)\n` +
+                             `• 12.345.678/0001-95 (com formatação)`
+                };
+            }
+            
+        case 'email':
+            // Validar email básico
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (emailRegex.test(chave.toLowerCase())) {
+                return {
+                    valido: true,
+                    chaveFormatada: chave.toLowerCase(),
+                    mensagem: '✅ Email válido!'
+                };
+            } else {
+                return {
+                    valido: false,
+                    chaveFormatada: '',
+                    mensagem: `❌ Email inválido!\n\n` +
+                             `Formato correto: usuario@dominio.com\n\n` +
+                             `Exemplos:\n` +
+                             `• exemplo@gmail.com\n` +
+                             `• loja@empresa.com.br`
+                };
+            }
+            
+        case 'chave_aleatoria':
+            // Chave aleatória: mínimo 10 caracteres, máximo 77
+            if (chave.length >= 10 && chave.length <= 77) {
+                return {
+                    valido: true,
+                    chaveFormatada: chave,
+                    mensagem: '✅ Chave aleatória válida!'
+                };
+            } else {
+                return {
+                    valido: false,
+                    chaveFormatada: '',
+                    mensagem: `❌ Chave aleatória inválida!\n\n` +
+                             `Mínimo: 10 caracteres\n` +
+                             `Máximo: 77 caracteres\n` +
+                             `Atual: ${chave.length} caracteres`
+                };
+            }
+            
+        default:
+            // Outro tipo - validação genérica
+            if (chave.length >= 5 && chave.length <= 77) {
+                return {
+                    valido: true,
+                    chaveFormatada: chave,
+                    mensagem: `✅ Chave do tipo "${tipo}" aceita!`
+                };
+            } else {
+                return {
+                    valido: false,
+                    chaveFormatada: '',
+                    mensagem: `❌ Chave inválida!\n\n` +
+                             `Comprimento deve ser entre 5 e 77 caracteres\n` +
+                             `Atual: ${chave.length} caracteres`
+                };
+            }
+    }
+}
+
+// 🔧 FUNÇÃO PARA DETECTAR TIPO DE CHAVE MELHORADO
+function detectarTipoChaveAuto(chave) {
+    chave = chave.trim().toLowerCase();
+    
+    // 1. Email (prioridade máxima)
+    if (chave.includes('@')) {
+        return 'email';
+    }
+    
+    // 2. Remover todos não-numéricos para análise
+    const apenasNumeros = chave.replace(/\D/g, '');
+    
+    // 3. CPF (11 dígitos) - CORREÇÃO: melhor detecção
+    if (apenasNumeros.length === 11) {
+        // Verificar se é CPF (primeiro dígito pode ser 0)
+        // CPFs geralmente não começam com 8 ou 9 (reservados para celulares)
+        const primeiroDigito = parseInt(apenasNumeros.charAt(0));
+        
+        // Se começar com 0-7, provavelmente é CPF
+        if (primeiroDigito >= 0 && primeiroDigito <= 7) {
+            return 'cpf';
         }
         
-        // 📱 CAMPO DA CHAVE PIX COM VALIDAÇÃO FORTE
-        let novaChave = null;
-        let chaveValida = false;
+        // Se começar com 8 ou 9, provavelmente é celular
+        if (primeiroDigito === 8 || primeiroDigito === 9) {
+            return 'celular';
+        }
         
-        while (!chaveValida) {
-            novaChave = promptComValidacao(
-                '✅ SENHA VÁLIDA!\n\n' +
-                '📱 DIGITE A CHAVE PIX:\n\n' +
-                '📋 FORMATOS ACEITOS:\n' +
-                '• Celular: +5581986176915 (COM +55)\n' +
-                '• CPF: 123.456.789-09\n' +
-                '• Email: email@exemplo.com\n' +
-                '• Chave aleatória\n\n' +
-                '⚠️ IMPORTANTE: Para celular, deve começar com +55\n\n' +
-                'Chave atual: ' + (dadosAtuais.chave || '(não configurada)'),
-                dadosAtuais.chave || '',
-                validarChavePIX
-            );
-            
-            if (novaChave === null) {
-                console.log('Configuração de PIX cancelada pelo usuário');
-                return; // Usuário cancelou
+        return 'cpf'; // padrão
+    }
+    
+    // 4. CNPJ (14 dígitos)
+    if (apenasNumeros.length === 14) {
+        return 'cnpj';
+    }
+    
+    // 5. Celular (8-11 dígitos) - CORREÇÃO: melhor detecção
+    if (apenasNumeros.length >= 8 && apenasNumeros.length <= 11) {
+        // Se começar com 8 ou 9, é celular
+        const primeiroDigito = parseInt(apenasNumeros.charAt(0));
+        if (primeiroDigito === 8 || primeiroDigito === 9) {
+            return 'celular';
+        }
+        
+        // Se tiver 10-11 dígitos e começar com DDD (2 dígitos)
+        if (apenasNumeros.length >= 10) {
+            const ddd = parseInt(apenasNumeros.substring(0, 2));
+            // DDDs válidos no Brasil são entre 11 e 99
+            if (ddd >= 11 && ddd <= 99) {
+                const segundoDigito = parseInt(apenasNumeros.charAt(2));
+                // Celulares atuais começam com 9 após o DDD
+                if (segundoDigito === 9) {
+                    return 'celular';
+                }
+                return 'telefone';
             }
-            
-            // Validação final
-            const validacaoFinal = validarChavePIX(novaChave);
-            if (validacaoFinal.valido) {
-                chaveValida = true;
+        }
+        
+        return 'celular'; // padrão para números curtos
+    }
+    
+    // 6. Celular com código do país (12-13 dígitos com +55)
+    if (chave.startsWith('+55') || (apenasNumeros.length === 12 && apenasNumeros.startsWith('55'))) {
+        return 'celular';
+    }
+    
+    // 7. Chave aleatória (UUID-like)
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chave)) {
+        return 'chave_aleatoria';
+    }
+    
+    // 8. Outras chaves aleatórias (com caracteres especiais)
+    if (/[a-z]/i.test(chave) && /[0-9]/.test(chave)) {
+        return 'chave_aleatoria';
+    }
+    
+    // 9. Se tiver apenas números mas não se encaixa nos padrões acima
+    if (/^\d+$/.test(chave) && chave.length >= 5 && chave.length <= 77) {
+        return 'telefone';
+    }
+    
+    // 10. Default
+    return 'outro';
+}
+
+// 🔧 FUNÇÃO PARA PROMPT COM VALIDAÇÃO E 3 TENTATIVAS (APENAS PARA CHAVE PIX)
+function promptComValidacaoChavePIX(mensagem, valorPadrao) {
+    let tentativas = 0;
+    const maxTentativas = 3;
+    
+    while (tentativas < maxTentativas) {
+        const entrada = prompt(
+            `${mensagem}\n\n` +
+            `Tentativa ${tentativas + 1} de ${maxTentativas}`,
+            valorPadrao
+        );
+        
+        if (entrada === null) {
+            return null; // Usuário cancelou
+        }
+        
+        const resultadoValidacao = validarChavePIX(entrada);
+        
+        if (resultadoValidacao.valido) {
+            // Se precisou corrigir, mostrar mensagem
+            if (resultadoValidacao.mensagem.includes('corrigido') || 
+                resultadoValidacao.mensagem.includes('Formatado') ||
+                resultadoValidacao.mensagem.includes('válido')) {
                 
-                // Se foi corrigida automaticamente, mostrar confirmação
-                if (validacaoFinal.chaveFormatada && validacaoFinal.chaveFormatada !== novaChave) {
-                    const confirmarCorrecao = confirm(
-                        `📱 CONFIRMAR CHAVE PIX\n\n` +
-                        `Você digitou: ${novaChave}\n` +
-                        `Será salvo como: ${validacaoFinal.chaveFormatada}\n\n` +
-                        `✅ Esta é a forma correta para o PIX!\n\n` +
-                        `Deseja continuar?`
-                    );
-                    
-                    if (!confirmarCorrecao) {
-                        chaveValida = false;
-                        continue;
-                    }
-                    
-                    novaChave = validacaoFinal.chaveFormatada;
+                const confirmar = confirm(
+                    `${resultadoValidacao.mensagem}\n\n` +
+                    `Deseja usar: ${resultadoValidacao.chaveFormatada || entrada}?`
+                );
+                
+                if (confirmar) {
+                    return resultadoValidacao.chaveFormatada || entrada;
+                } else {
+                    tentativas++;
+                    continue;
                 }
             }
+            
+            return resultadoValidacao.chaveFormatada || entrada;
+        } else {
+            // Mostrar erro específico
+            alert(resultadoValidacao.mensagem);
+            tentativas++;
+            
+            if (tentativas >= maxTentativas) {
+                alert(`❌ Número máximo de tentativas (${maxTentativas}) atingido!\n\n` +
+                      `Chave PIX não configurada.\n` +
+                      `Operação cancelada.`);
+                return null;
+            }
+        }
+    }
+    
+    return null;
+}
+        
+        // 📱 CAMPO DA CHAVE PIX COM VALIDAÇÃO FORTE E 3 TENTATIVAS
+        let novaChave = null;
+        
+        // Usar prompt com validação e 3 tentativas
+        novaChave = promptComValidacaoChavePIX(
+            '✅ SENHA VÁLIDA!\n\n' +
+            '💳 DIGITE A CHAVE PIX:\n\n' +
+            '📋 FORMATOS ACEITOS:\n' +
+            '1. 📱 CELULAR: 86176915 (sistema adiciona +5581)\n' +
+            '2. 📱 CELULAR: 8186176915 (com DDD)\n' +
+            '3. 📱 CELULAR: +558186176915 (completo)\n' +
+            '4. 🆔 CPF: 12345678909 ou 123.456.789-09\n' +
+            '5. 📧 EMAIL: email@exemplo.com\n' +
+            '6. 🏢 CNPJ: 12345678000195 ou 12.345.678/0001-95\n' +
+            '7. 🔑 CHAVE ALEATÓRIA: qualquer texto (10-77 caracteres)\n\n' +
+            'ℹ️ O sistema detectará e corrigirá automaticamente!',
+            dadosAtuais.chave || ''
+        );
+
+        if (novaChave === null) {
+            console.log('Configuração de PIX cancelada pelo usuário');
+            return; // Usuário cancelou ou excedeu tentativas
         }
         
         if (!novaChave || novaChave.trim() === '') {
@@ -2497,26 +2974,6 @@ pixConfigBtn.addEventListener('click', async () => {
         }
         
         // 🔍 DETECTAR AUTOMATICAMENTE O TIPO DE CHAVE
-        function detectarTipoChaveAuto(chave) {
-            const limpa = chave.replace(/\D/g, '');
-            
-            if (limpa.length === 11) {
-                return 'cpf';
-            } else if (limpa.length === 14) {
-                return 'cnpj';
-            } else if (chave.includes('@')) {
-                return 'email';
-            } else if (chave.startsWith('+55') && limpa.length === 13) {
-                return 'celular';
-            } else if (/^[0-9]+$/.test(limpa) && limpa.length >= 10 && limpa.length <= 13) {
-                return 'telefone';
-            } else if (chave.includes('-')) {
-                return 'chave_aleatoria';
-            } else {
-                return 'outro';
-            }
-        }
-        
         const tipoChave = detectarTipoChaveAuto(novaChave);
         
         // 📋 RESUMO PARA CONFIRMAÇÃO
@@ -2527,9 +2984,11 @@ pixConfigBtn.addEventListener('click', async () => {
         📱 TIPO: ${tipoChave.toUpperCase()}
         
         ⚠️ VERIFIQUE SE ESTÁ CORRETO:
-        ${tipoChave === 'celular' ? '• Começa com +55 ✓\n• 13 dígitos após +55 ✓' : ''}
+        ${tipoChave === 'celular' ? '• Formato: +55DDDXXXXXXXX ✓' : ''}
         ${tipoChave === 'cpf' ? '• 11 dígitos ✓' : ''}
         ${tipoChave === 'email' ? '• Formato email@exemplo.com ✓' : ''}
+        ${tipoChave === 'cnpj' ? '• 14 dígitos ✓' : ''}
+        ${tipoChave === 'chave_aleatoria' ? '• Chave aleatória ✓' : ''}
         
         📝 Esta chave será usada para receber pagamentos!
         `;
@@ -2664,77 +3123,223 @@ toolbar.appendChild(pixConfigBtn);
   
   configWhatsBtn.addEventListener('click', async () => {
     try {
-      // 🔒 PEDIR SENHA DO WHATSAPP (SEPARADA)
-      const senhaWhatsApp = await criarModalSenhaWhatsApp();
-      
-      if (senhaWhatsApp === null) {
-        console.log('Configuração de WhatsApp cancelada pelo usuário');
-        return;
-      }
-      
-      if (!senhaWhatsApp || senhaWhatsApp.trim() === '') {
-        alert('❌ Senha é obrigatória!');
-        return;
-      }
-      
-      // Verificar senha do WhatsApp usando função específica
-      const senhaValida = await verificarSenhaWhatsApp(senhaWhatsApp);
-      
-      if (!senhaValida) {
-        await sistemaLogs.registrar('config_whatsapp_falha', {
-          motivo: 'senha_incorreta',
-          ip: await getUserIP()
-        });
-        alert('❌ Senha do WhatsApp incorreta!');
-        return;
-      }
-      
-      // LOG DE ACESSO
-      console.log('✅ Acesso autorizado para configurar WhatsApp');
-      
-      let numeroAtual = '';
-      try {
-        const whatsSnap = await db.collection('config').doc('whatsapp').get();
-        if (whatsSnap.exists && whatsSnap.data().numero) {
-          numeroAtual = whatsSnap.data().numero;
-        }
-      } catch (e) {
-        console.log('Número não configurado');
-      }
-      
-      const novoNumero = prompt(
-        '📱 CONFIGURAR WHATSAPP\n\n' +
-        'Digite o número para receber pedidos:\n' +
-        'Exemplo: 5581986176915\n\n' +
-        'Número atual: ' + (numeroAtual || 'Não configurado'),
-        numeroAtual
-      );
-      
-      if (novoNumero && novoNumero.trim() !== '') {
-        const numeroLimpo = novoNumero.trim().replace(/\D/g, '');
+        // 🔒 PEDIR SENHA DO WHATSAPP (SEPARADA)
+        const senhaWhatsApp = await criarModalSenhaWhatsApp();
         
-        if (numeroLimpo.length < 10) {
-          alert('❌ Número inválido! Mínimo 10 dígitos.');
-          return;
+        if (senhaWhatsApp === null) {
+            console.log('Configuração de WhatsApp cancelada pelo usuário');
+            return;
         }
         
+        if (!senhaWhatsApp || senhaWhatsApp.trim() === '') {
+            alert('❌ Senha é obrigatória!');
+            return;
+        }
+        
+        // Verificar senha do WhatsApp usando função específica
+        const senhaValida = await verificarSenhaWhatsApp(senhaWhatsApp);
+        
+        if (!senhaValida) {
+            await sistemaLogs.registrar('config_whatsapp_falha', {
+                motivo: 'senha_incorreta',
+                ip: await getUserIP()
+            });
+            alert('❌ Senha do WhatsApp incorreta!');
+            return;
+        }
+        
+        // LOG DE ACESSO
+        console.log('✅ Acesso autorizado para configurar WhatsApp');
+        
+        let numeroAtual = '';
+        try {
+            const whatsSnap = await db.collection('config').doc('whatsapp').get();
+            if (whatsSnap.exists && whatsSnap.data().numero) {
+                numeroAtual = whatsSnap.data().numero;
+            }
+        } catch (e) {
+            console.log('Número não configurado');
+        }
+        
+        // 🔧 FUNÇÃO PARA VALIDAR NÚMERO DO WHATSAPP
+        function validarNumeroWhatsApp(numero) {
+            numero = String(numero || '').trim();
+            
+            if (!numero || numero === '') {
+                return {
+                    valido: false,
+                    mensagem: '❌ O número não pode estar vazio!'
+                };
+            }
+            
+            const numeroLimpo = numero.replace(/\D/g, '');
+            const digitos = numeroLimpo.length;
+            
+            // Validações
+            if (digitos < 10) {
+                return {
+                    valido: false,
+                    mensagem: `❌ Número muito curto!\n\n` +
+                             `Digitado: ${numero} (${digitos} dígitos)\n` +
+                             `Mínimo: 10 dígitos\n` +
+                             `Exemplo: 5581986176915`
+                };
+            }
+            
+            if (digitos > 15) {
+                return {
+                    valido: false,
+                    mensagem: `❌ Número muito longo!\n\n` +
+                             `Digitado: ${numero} (${digitos} dígitos)\n` +
+                             `Máximo: 15 dígitos\n` +
+                             `Verifique se não digitou caracteres extras`
+                };
+            }
+            
+            if (!/^\d+$/.test(numeroLimpo)) {
+                return {
+                    valido: false,
+                    mensagem: `❌ Número contém caracteres inválidos!\n\n` +
+                             `Apenas dígitos são permitidos\n` +
+                             `Remova letras, espaços ou símbolos`
+                };
+            }
+            
+            // Validação do formato (DDD + número)
+            if (!/^55\d{10,13}$/.test(numeroLimpo)) {
+                return {
+                    valido: false,
+                    mensagem: `⚠️ Formato incomum detectado!\n\n` +
+                             `Número: ${numeroLimpo}\n` +
+                             `Formato recomendado: 55DDDXXXXXXXX\n` +
+                             `Exemplo: 5581986176915\n\n` +
+                             `Deseja usar mesmo assim?`
+                };
+            }
+            
+            return {
+                valido: true,
+                numeroFormatado: numeroLimpo,
+                mensagem: `✅ Número válido!\n\n` +
+                         `Número: ${numeroLimpo}\n` +
+                         `Dígitos: ${digitos}`
+            };
+        }
+        
+        // 🔄 SISTEMA DE 3 TENTATIVAS
+        let tentativas = 0;
+        const maxTentativas = 3;
+        let numeroValidado = null;
+        let cancelado = false;
+        
+        while (tentativas < maxTentativas && !numeroValidado && !cancelado) {
+            const mensagemTentativa = `📱 CONFIGURAR WHATSAPP\n\n` +
+                `Digite o número para receber pedidos:\n` +
+                `Exemplo: 5581986176915\n\n` +
+                `⚠️ REQUISITOS:\n` +
+                `• Mínimo 10 dígitos\n` +
+                `• Apenas números\n` +
+                `• Recomendado começar com 55\n\n` +
+                `Tentativa ${tentativas + 1} de ${maxTentativas}\n` +
+                `Número atual: ${numeroAtual || 'Não configurado'}`;
+            
+            const novoNumero = prompt(mensagemTentativa, numeroAtual);
+            
+            if (novoNumero === null) {
+                // Usuário cancelou
+                cancelado = true;
+                console.log('Configuração de WhatsApp cancelada pelo usuário');
+                continue;
+            }
+            
+            if (!novoNumero || novoNumero.trim() === '') {
+                alert('❌ O número não pode estar vazio!');
+                tentativas++;
+                continue;
+            }
+            
+            const validacao = validarNumeroWhatsApp(novoNumero);
+            
+            if (validacao.valido) {
+                // Se for formato incomum, pedir confirmação
+                if (validacao.mensagem.includes('Formato incomum')) {
+                    const confirmar = confirm(validacao.mensagem);
+                    if (!confirmar) {
+                        tentativas++;
+                        continue;
+                    }
+                }
+                
+                numeroValidado = validacao.numeroFormatado;
+                
+                // Mostrar confirmação final
+                const confirmarNumero = confirm(
+                    `📱 CONFIRMAR NÚMERO DO WHATSAPP\n\n` +
+                    `Número: ${numeroValidado}\n` +
+                    `Este número receberá todos os pedidos do sistema.\n\n` +
+                    `✅ Confirmar configuração?`
+                );
+                
+                if (!confirmarNumero) {
+                    numeroValidado = null;
+                    tentativas++;
+                    continue;
+                }
+                
+            } else {
+                // Mostrar erro
+                alert(validacao.mensagem);
+                tentativas++;
+                
+                // Se for a última tentativa, mostrar mensagem final
+                if (tentativas >= maxTentativas) {
+                    alert(`❌ Número máximo de tentativas atingido!\n\n` +
+                          `Configuração do WhatsApp cancelada.\n` +
+                          `Tente novamente mais tarde.`);
+                    return;
+                }
+            }
+        }
+        
+        if (cancelado) {
+            console.log('Configuração de WhatsApp cancelada');
+            return;
+        }
+        
+        if (!numeroValidado) {
+            alert('❌ Nenhum número válido foi inserido.');
+            return;
+        }
+        
+        // 📝 SALVAR NO FIREBASE
         await db.collection('config').doc('whatsapp').set({ 
-          numero: numeroLimpo,
-          atualizadoEm: new Date().toISOString()
+            numero: numeroValidado,
+            atualizadoEm: new Date().toISOString(),
+            atualizadoPor: auth.currentUser?.uid
         }, { merge: true });
         
+        // 📝 LOG DO SISTEMA
         await sistemaLogs.registrar('config_whatsapp', {
-            numeroMascarado: '***' + numeroLimpo.slice(-4),
-            adminId: auth.currentUser?.uid
+            numeroMascarado: '***' + numeroValidado.slice(-4),
+            digitos: numeroValidado.length,
+            adminId: auth.currentUser?.uid,
+            tentativasUsadas: tentativas
         });
         
-        alert(`✅ WhatsApp configurado!\n\nNúmero: ${numeroLimpo}`);
-      }
-      
+        // 🎉 MENSAGEM DE SUCESSO
+        alert(`✅ WHATSAPP CONFIGURADO COM SUCESSO!\n\n` +
+              `📱 Número: ${numeroValidado}\n` +
+              `🔢 Dígitos: ${numeroValidado.length}\n` +
+              `⏱️ Tentativas: ${tentativas}\n\n` +
+              `Todos os pedidos serão enviados para este número!`);
+        
+        console.log('✅ WhatsApp configurado:', numeroValidado);
+        
     } catch (error) {
-      alert('❌ Erro: ' + error.message);
+        console.error('❌ Erro ao configurar WhatsApp:', error);
+        alert('❌ Erro: ' + error.message);
     }
-  });
+});
   
   toolbar.appendChild(configWhatsBtn);
 
@@ -2883,6 +3488,7 @@ toolbar.appendChild(pixConfigBtn);
   
   toolbar.appendChild(estoqueBtn);
 
+  
   // Adicionar toolbar antes da lista
   modalContent.insertBefore(toolbar, container);
 
@@ -3023,7 +3629,7 @@ toolbar.appendChild(pixConfigBtn);
       }
     });
 
-    // ATIVAR/DESATIVAR PRODUTO (SEM VALIDAÇÃO)
+    // ATIVAR/DESATIVAR PRODUTO (SEM VALIDAÇÃO) COM INVALIDAÇÃO DE CACHE
     row.querySelector(`#btnToggle_${p._id}`).addEventListener('click', async () => {
       const snapRef = db.collection('produtos').doc(p._id);
       const snapData = (await snapRef.get()).data();
@@ -3043,6 +3649,12 @@ toolbar.appendChild(pixConfigBtn);
       });
       
       alert(`✅ Produto ${newActive ? 'ativado' : 'desativado'} com sucesso!`);
+      
+      // 🔥 INVALIDAR CACHE IMEDIATAMENTE
+      produtosCache = null;
+      ultimoCarregamentoCache = null;
+      
+      // Recarregar a lista do admin
       renderAdminProductsContent();
     });
 
@@ -3060,6 +3672,11 @@ toolbar.appendChild(pixConfigBtn);
       });
       
       alert('✅ Produto removido com sucesso!');
+      
+      // 🔥 INVALIDAR CACHE
+      produtosCache = null;
+      ultimoCarregamentoCache = null;
+      
       renderAdminProductsContent();
     });
   });
@@ -3091,8 +3708,15 @@ toolbar.appendChild(pixConfigBtn);
         clearTimeout(adminSessaoTimeout);
         adminSessaoTimeout = null;
       }
+      
+      // 🔥 INVALIDAR CACHE
+      produtosCache = null;
+      ultimoCarregamentoCache = null;
+      
       if (typeof carregarProdutos === 'function') {
-        setTimeout(() => carregarProdutos(), 300);
+        setTimeout(() => {
+          carregarProdutos();
+        }, 300);
       }
     }
   });
@@ -3194,39 +3818,78 @@ document.getElementById('btnUseLocation')?.addEventListener('click', () => {
 });
 
 
+
+
 // =========================
-// INICIALIZAÇÃO
+// INICIALIZAÇÃO OTIMIZADA COM LISTENER DE TEMPO REAL
 // =========================
+
+// Modificar a inicialização para usar cache
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    console.log('✅ Sistema inicializando...');
+    console.log('🚀 Sistema inicializando (versão otimizada)...');
     
-    // Fazer login automático
-    try {
-      await auth.signInAnonymously();
-      console.log('✅ Usuário autenticado anonimamente');
-    } catch (authError) {
-      console.log('⚠️ Autenticação não necessária para leitura');
+    // 1. PRIMEIRO: Autenticar e carregar configurações em paralelo
+    await Promise.all([
+      auth.signInAnonymously().catch(() => {
+        console.log('⚠️ Autenticação em segundo plano');
+      }),
+      inicializarPix()
+    ]);
+    
+    // 2. Carregar carrinho do localStorage APÓS autenticação
+    const savedCart = localStorage.getItem('cart');
+    if (savedCart) {
+      try {
+        cart = JSON.parse(savedCart);
+        console.log('✅ Carrinho carregado do localStorage:', cart.length, 'itens');
+      } catch (e) {
+        console.error('❌ Erro ao carregar carrinho:', e);
+        cart = [];
+      }
     }
     
-    // Inicializar PIX COMPLETO
-    await inicializarPix();
+    // 3. Adicionar real-time listener para produtos (ATUALIZAÇÃO EM TEMPO REAL)
+    db.collection('produtos').onSnapshot((snapshot) => {
+      console.log('🔄 Atualização em tempo real de produtos detectada');
+      
+      // Invalidar cache quando houver mudanças
+      produtosCache = null;
+      ultimoCarregamentoCache = null;
+      
+      // Recarregar produtos se o catálogo estiver visível
+      if (typeof carregarProdutos === 'function' && 
+          document.getElementById('catalogCard').style.display !== 'none') {
+        setTimeout(() => {
+          carregarProdutos();
+        }, 500);
+      }
+    });
     
-    // Configurar listener do status do carrinho
+    // 4. Configurar listener do status do carrinho
     db.collection("config").doc("cart").onSnapshot(() => {
       atualizarStatusCarrinhoUnificado();
     });
     
-    // Carregar status inicial
+    // 5. Carregar status inicial do carrinho
     await atualizarStatusCarrinhoUnificado();
     
-    // Carregar produtos
-    await carregarProdutos();
+    // 6. Atualizar contador do carrinho IMEDIATAMENTE
+    updateCartCount();
     
-    // Adicionar evento de pesquisa
+    // 7. Carregar produtos (usando versão otimizada)
+    await carregarProdutosOtimizado();
+    
+    // 8. Adicionar evento de pesquisa
     document.getElementById('searchInput').addEventListener('input', () => {
       carregarProdutos();
     });
+    
+    // 9. Atualizar carrinho visual se houver itens
+    if (cart.length > 0) {
+      console.log('🔄 Renderizando carrinho com', cart.length, 'itens...');
+      renderCart();
+    }
     
     console.log('✅ Sistema inicializado com sucesso!');
     
@@ -3236,7 +3899,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
-// 🔧 FERRAMENTA DE EMERGÊNCIA AVANÇADA - VERSÃO COM MODAL HTML (CORRIGIDA)
+// =========================
+// FERRAMENTA DE EMERGÊNCIA AVANÇADA - VERSÃO COM MODAL HTML (CORRIGIDA)
+// =========================
+
 window.reporEstoqueManual = async function() {
   try {
     console.log('🔍 Buscando produtos para reposição...');
@@ -3523,6 +4189,10 @@ window.reporEstoqueManual = async function() {
               `🔄 ${produto.estoque} → ${quantidade}\n` +
               `📈 ${diferenca >= 0 ? '+' : ''}${diferenca} unidades`);
         
+        // 🔥 INVALIDAR CACHE
+        produtosCache = null;
+        ultimoCarregamentoCache = null;
+        
         // Recarregar produtos
         if (typeof carregarProdutos === 'function') {
           setTimeout(() => {
@@ -3597,6 +4267,7 @@ window.reporEstoqueManual = async function() {
     alert('❌ Erro ao carregar produtos: ' + error.message);
   }
 };
+
 // =========================
 // FUNÇÃO PARA CORRIGIR PIX EXISTENTE (executar no console F12)
 // =========================
@@ -4153,7 +4824,7 @@ const observer = new MutationObserver((mutations) => {
         // Marcar como configurado
         closeBtn.setAttribute('data-ja-configurado', 'true');
         
-        // Configurar evento
+        // Configurar evento COM INVALIDAÇÃO DE CACHE
         closeBtn.onclick = function(event) {
           if (event) {
             event.preventDefault();
@@ -4174,6 +4845,10 @@ const observer = new MutationObserver((mutations) => {
             clearTimeout(window.adminSessaoTimeout);
             window.adminSessaoTimeout = null;
           }
+          
+          // 🔥 INVALIDAR CACHE
+          produtosCache = null;
+          ultimoCarregamentoCache = null;
           
           // Recarregar produtos
           if (typeof window.carregarProdutos === 'function') {
@@ -4244,7 +4919,7 @@ window.renderAdminProductsContent = async function() {
             novoBotao.textContent = '🚀 FECHAR ADM';
             novoBotao.title = 'Clique 1 vez para fechar';
             
-            // COMPORTAMENTO ABSOLUTO (nada pode impedir)
+            // COMPORTAMENTO ABSOLUTO (nada pode impedir) COM INVALIDAÇÃO DE CACHE
             novoBotao.addEventListener('click', function handler(e) {
                 console.log('💥 CLIQUE NUCLEAR ATIVADO!');
                 
@@ -4272,6 +4947,10 @@ window.renderAdminProductsContent = async function() {
                     clearTimeout(window.adminSessaoTimeout);
                     window.adminSessaoTimeout = null;
                 }
+                
+                // 🔥 INVALIDAR CACHE
+                produtosCache = null;
+                ultimoCarregamentoCache = null;
                 
                 // Recarregar produtos
                 if (typeof window.carregarProdutos === 'function') {
@@ -4362,12 +5041,23 @@ if (originais.renderAdminProducts) {
 }
 
 
-// 8. FUNÇÃO DE EMERGÊNCIA MANUAL (chame no console se precisar)
+// 8. FUNÇÃO DE EMERGÊNCIA MANUAL (chame no console se precisar) COM INVALIDAÇÃO DE CACHE
 window.forceCloseButton = function() {
     console.log('🚨 FORÇANDO BOTÃO FECHAR...');
     
     // Remover tudo
     document.querySelectorAll('.modal-backdrop, .modal').forEach(el => el.remove());
+    
+    // 🔥 INVALIDAR CACHE
+    produtosCache = null;
+    ultimoCarregamentoCache = null;
+    
+    // Recarregar produtos
+    if (typeof carregarProdutos === 'function') {
+      setTimeout(() => {
+        carregarProdutos();
+      }, 300);
+    }
     
     // Criar botão de emergência
     const emergencyBtn = document.createElement('button');
@@ -4563,6 +5253,10 @@ window.limparCacheLocal = function() {
         // Limpar carrinho
         cart = [];
         
+        // 🔥 INVALIDAR CACHE
+        produtosCache = null;
+        ultimoCarregamentoCache = null;
+        
         // Recarregar produtos
         if (typeof carregarProdutos === 'function') {
             carregarProdutos();
@@ -4587,15 +5281,19 @@ window.limparCacheLocal = function() {
 
 // 4. RECARREGAR PRODUTOS
 window.recarregarProdutos = function() {
-    console.log('🔄 Recarregando produtos...');
-    
-    if (typeof carregarProdutos === 'function') {
-        carregarProdutos();
-        alert('✅ Produtos recarregados!');
-        console.log('✅ Produtos recarregados');
-    } else {
-        alert('❌ Função carregarProdutos não disponível');
-    }
+  console.log('🔄 Recarregando produtos...');
+  
+  // 🔥 INVALIDAR CACHE
+  produtosCache = null;
+  ultimoCarregamentoCache = null;
+  
+  if (typeof carregarProdutos === 'function') {
+    carregarProdutos();
+    alert('✅ Produtos recarregados!');
+    console.log('✅ Produtos recarregados');
+  } else {
+    alert('❌ Função carregarProdutos não disponível');
+  }
 };
 
 // 5. EXECUTAR DIAGNÓSTICO
@@ -4731,6 +5429,10 @@ window.resetarSistema = function() {
         // Resetar variáveis
         cart = [];
         cartEnabled = true;
+        
+        // 🔥 INVALIDAR CACHE COMPLETAMENTE
+        produtosCache = null;
+        ultimoCarregamentoCache = null;
         
         // Mostrar loading
         const loading = document.createElement('div');
