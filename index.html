@@ -1643,6 +1643,9 @@ function limparCarrinho(){
 // =========================
 // FUNÇÃO ENVIAR WHATSAPP - CORRIGIDA
 // =========================
+// =========================
+// FUNÇÃO ENVIAR WHATSAPP - CORRIGIDA PARA ABRIR APP NATIVO
+// =========================
 async function enviarWhats() {
   console.log('🟡 Iniciando envio para WhatsApp...');
   
@@ -1704,7 +1707,7 @@ async function enviarWhats() {
     }
 
     // ✅ 3º PASSO: BUSCAR NÚMERO DO WHATSAPP
-    let numeroWhatsApp = ''; // Removido número fixo
+    let numeroWhatsApp = '';
     
     try {
       const whatsSnap = await db.collection('config').doc('whatsapp').get();
@@ -1773,8 +1776,7 @@ async function enviarWhats() {
     renderCart();
     carregarProdutos();
 
-    // ✅ 7º PASSO: ABRIR WHATSAPP - MÉTODO DIRETO E FUNCIONAL
-    // Primeiro, mostrar confirmação
+    // ✅ 7º PASSO: ABRIR WHATSAPP - MÉTODO OTIMIZADO PARA CELULAR
     const confirmacao = confirm(
       `✅ PEDIDO PROCESSADO!\n\n` +
       `Será enviado para: ${numeroWhatsApp}\n` +
@@ -1783,38 +1785,72 @@ async function enviarWhats() {
     );
     
     if (confirmacao) {
-      console.log('🌐 Abrindo WhatsApp...');
+      console.log('🌐 Abrindo WhatsApp nativo...');
       
-      // Método 1: Tentar abrir em nova janela
-      const novaJanela = window.open(urlWhatsApp, '_blank');
-      
-      // Se pop-up for bloqueado, usar método alternativo
-      setTimeout(() => {
-        if (!novaJanela || novaJanela.closed) {
-          console.log('⚠️ Pop-up bloqueado, usando método alternativo...');
+      // MÉTODO OTIMIZADO PARA CELULAR
+      try {
+        // Método 1: URL padrão do WhatsApp (funciona na maioria dos dispositivos)
+        const tempLink = document.createElement('a');
+        tempLink.href = urlWhatsApp;
+        tempLink.target = '_blank';
+        tempLink.rel = 'noopener noreferrer';
+        tempLink.style.display = 'none';
+        document.body.appendChild(tempLink);
+        tempLink.click();
+        document.body.removeChild(tempLink);
+        
+        console.log('✅ Link do WhatsApp acionado');
+        
+        // Aguardar e verificar se abriu
+        setTimeout(() => {
+          const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
           
-          // Método 2: Redirecionar para WhatsApp Web
-          const urlWhatsAppWeb = `https://web.whatsapp.com/send?phone=${numeroWhatsApp}&text=${mensagemCodificada}`;
-          
-          // Mostrar instruções
-          alert(
-            '📱 Pop-up bloqueado!\n\n' +
-            'Para enviar o pedido:\n' +
-            '1. Clique OK\n' +
-            '2. WhatsApp Web será aberto\n' +
-            '3. Clique em "Enviar" no WhatsApp\n\n' +
-            'Ou envie manualmente para: ' + numeroWhatsApp
-          );
-          
-          // Abrir WhatsApp Web
-          window.open(urlWhatsAppWeb, '_blank');
+          if (isMobile) {
+            // Para dispositivos móveis, dar instruções se não abriu
+            const confirmarAbertura = confirm(
+              '📱 ABRINDO WHATSAPP\n\n' +
+              '1. Se o WhatsApp não abriu automaticamente:\n' +
+              '2. Volte para esta página\n' +
+              '3. Copie o número abaixo\n' +
+              '4. Abra o WhatsApp manualmente\n\n' +
+              'Número: ' + numeroWhatsApp + '\n\n' +
+              '✅ A mensagem já está pronta, basta colar!\n\n' +
+              'Clique OK para copiar o número automaticamente.'
+            );
+            
+            if (confirmarAbertura) {
+              // Copiar número para área de transferência
+              if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(numeroWhatsApp)
+                  .then(() => alert('✅ Número copiado! Agora abra o WhatsApp e cole.'))
+                  .catch(() => alert('📱 Número: ' + numeroWhatsApp));
+              } else {
+                alert('📱 Número para copiar: ' + numeroWhatsApp);
+              }
+            }
+          }
+        }, 1500);
+        
+      } catch (error) {
+        console.log('⚠️ Erro no método principal:', error);
+        
+        // Fallback: tentar window.open
+        try {
+          window.open(urlWhatsApp, '_blank');
+        } catch (e) {
+          console.log('⚠️ Fallback também falhou:', e);
         }
-      }, 500);
+      }
       
       // Feedback final
       setTimeout(() => {
-        alert('✅ Pedido finalizado!\n\nWhatsApp aberto. Envie a mensagem e aguarde confirmação.');
-      }, 1000);
+        alert('✅ Pedido finalizado!\n\n' +
+              '• Carrinho limpo\n' +
+              '• Estoque atualizado\n' +
+              '• Pronto para enviar no WhatsApp\n\n' +
+              'Agradecemos pelo pedido! 🛒');
+      }, 2000);
+      
     } else {
       alert('⚠️ Pedido processado mas não enviado.\nO carrinho foi limpo.');
     }
@@ -1830,7 +1866,6 @@ async function enviarWhats() {
     }, 2000);
   }
 }
-
 // =========================
 // FUNÇÃO CONTINUAR COMPRANDO - CORRIGIDA
 // =========================
