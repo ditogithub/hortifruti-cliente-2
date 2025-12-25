@@ -186,9 +186,9 @@ header {
 #searchInput{ flex:1; max-width:360px; padding:6px 8px; border-radius:6px; border:1px solid rgba(0,0,0,0.12); }
 #adminLink{ background:rgba(0,0,0,0.2); color:#fff; padding:6px 10px; border-radius:6px; text-decoration:none; font-weight:600; }
 #btnOpenCart{ background:rgba(255,255,255,0.12); color:#fff; padding:6px 10px; border-radius:6px; border:0; cursor:pointer; font-weight:700; }
-.page { padding:21px; max-width:1400px; margin:0 auto; }
+.page { padding:19px; max-width:1400px; margin:0 auto; }
 .layout-coluna{ display:flex; flex-direction:column; gap:14px; align-items:center; }
-.card{ background:var(--card); border-radius:10px; padding-top: 35px; width:103%; max-width:1370px; box-shadow:0 8px 18px rgba(0,0,0,0.04); position:relative; }
+.card{ background:var(--card); border-radius:10px; padding-top: 35px; width:103%; max-width:1390px; box-shadow:0 6px 18px rgba(0,0,0,0.04); position:relative; }
 .products{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; }
 .product{ width:180px; background:#fafafa; border:1px solid #eee; border-radius:8px; padding:8px; text-align:center; display:flex; flex-direction:column; gap:8px; }
 
@@ -197,13 +197,13 @@ header {
 /* Ajuste de largura dos cards no celular */
 @media (max-width: 600px) {
   .product {
-    width: 100%;
+    width: 90%;
     margin: 10px auto;
     display: block;
   }
 
   .product img {
-    width: 100% !important;         /* Reduz para 90% para caber inteira */
+    width: 90% !important;         /* Reduz para 90% para caber inteira */
     height: auto !important;       /* Altura proporcional */
     max-height: 200px !important;  /* Limita altura máxima */
     object-fit: contain !important; /* MOSTRA INTEIRA */
